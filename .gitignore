@@ -1,0 +1,54 @@
+# Python and ML environments
+__pycache__/
+*.py[cod]
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Generated ML artifacts and experiment output
+data/*.csv
+data/*.parquet
+data/*.feather
+data/*.pkl
+data/*.joblib
+data/*.npy
+data/*.npz
+models/*.pkl
+models/*.joblib
+models/*.onnx
+models/*.pt
+models/*.pth
+models/*.ckpt
+models/*.h5
+models/*.sav
+mlruns/
+runs/
+artifacts/
+
+# Frontend build output and dependencies
+front-end/node_modules/
+front-end/build/
+
+# Generic caches and logs
+*.log
+.cache/
+.eslintcache
+.sixth/
+
+# Operating system files
+.DS_Store
+Thumbs.db

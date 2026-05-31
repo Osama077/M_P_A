@@ -1,0 +1,421 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  MATCH PERFORMANCE ANALYSIS — DEVELOPER TUTORIAL
+  Sports Performance Management Platform · ML Component
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ما اللي عملناه في الـ Session دي؟
+────────────────────────────────────────────────────────────
+حولنا 6 Jupyter Notebooks منفصلة لـ Python project منظم
+بكل الـ best practices، UUID لكل record، player dashboard
+مع 9 visualizations، وFastAPI تخدم الـ .NET backend.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. PROJECT STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Match Performance Analysis/
+│
+├── config.py                      ← كل الـ constants والـ settings
+│
+├── utils/
+│   ├── uuid_manager.py            ← UUID لكل record في الداتا
+│   └── helpers.py                 ← helper functions مشتركة
+│
+├── pipeline/
+│   ├── data_loader.py             ← NB01: تحميل StatsBomb وتنظيف
+│   ├── feature_engineering.py    ← NB02: حساب 48 feature
+│   ├── xg_model.py               ← NB03: LightGBM xG Model
+│   ├── vaep_model.py             ← NB04: XGBoost VAEP Model
+│   └── scoring_model.py          ← NB05: Overall Score (0-10)
+│
+├── visualizations/
+│   └── player_dashboard.py       ← 9 charts لكل لاعب
+│
+├── api/
+│   ├── main.py                   ← FastAPI app
+│   ├── schemas.py                ← Pydantic request models
+│   └── routes/
+│       ├── analysis.py           ← POST /analyze/...
+│       ├── player.py             ← GET /player/...
+│       ├── team.py               ← GET /team/...
+│       ├── match.py              ← GET /match/...
+│       └── benchmark.py          ← GET /benchmark/...
+│
+├── data/                         ← Parquet files (generated)
+├── models/                       ← Saved ML models (generated)
+├── run_pipeline.py               ← Entry point
+└── requirements.txt
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. INSTALLATION & SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+# 1. Clone / Download المشروع
+cd "Match Performance Analysis"/
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. شغّل الـ Pipeline كامل
+py run_pipeline.py --mode pipeline
+
+# 4. شغّل الـ API
+py run_pipeline.py --mode api
+
+# 5. شغّل الـ Frontend (في terminal منفصل)
+cd front-end && npm start
+
+# أو الاتنين الموازين:
+# Terminal 1: py run_pipeline.py --mode api
+# Terminal 2: cd front-end && npm start
+
+# الصفحات الرئيسية:
+# 🎨 Frontend: http://localhost:3000
+# 📚 API Swagger: http://localhost:8000/docs
+# 🔌 API Base: http://localhost:8000/api/v1
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. UUID SYSTEM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+كل record في النظام عنده UUID فريد بيتخزن بيه في الداتابيز.
+
+الـ UUID بييجي في نوعين:
+
+أ) Deterministic UUID:
+   - نفس المدخلات → نفس الـ UUID دايماً
+   - بيُستخدم لـ: Events, Matches, Player-Match records
+   - مثال:
+     match_id=123 + player_id=456 → UUID ثابت دايماً
+
+ب) Random UUID:
+   - كل مرة UUID جديد
+   - بيُستخدم لـ: Records مش ليها key طبيعي
+
+الـ UUID بييجي أول column في كل DataFrame:
+┌──────────────────────────────────────┬──────────┬───────────┐
+│ uuid                                 │ match_id │ player_id │
+├──────────────────────────────────────┼──────────┼───────────┤
+│ 550e8400-e29b-41d4-a716-446655440000 │ 265839   │ 5503      │
+└──────────────────────────────────────┴──────────┴───────────┘
+
+كود الاستخدام:
+─────────────
+from utils.uuid_manager import (
+    generate_uuid,          # UUID عشوائي
+    deterministic_uuid,     # UUID ثابت من قيم
+    add_uuid_column,        # إضافة UUID column للـ DataFrame
+)
+
+# مثال 1: UUID ثابت
+uuid = deterministic_uuid("match_123", "player_456")
+# → دايماً نفس الـ UUID لنفس المدخلات
+
+# مثال 2: إضافة UUID لـ DataFrame
+df = add_uuid_column(df, "uuid", based_on=["match_id", "player_id"])
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. PIPELINE DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 1: data_loader.py                                      │
+├─────────────────────────────────────────────────────────────┤
+│ Input  : StatsBomb API (online)                             │
+│ Output : events_clean.parquet  (~50MB)                      │
+│          spadl_actions.parquet (~20MB)                      │
+│          matches.parquet       (~100KB)                     │
+│          lineups.parquet       (~500KB)                     │
+│          shots_for_xg.parquet  (~2MB)                       │
+├─────────────────────────────────────────────────────────────┤
+│ ما بيعمله:                                                  │
+│ 1. load_matches()     → 38 ماتش Barcelona La Liga 2015/16   │
+│ 2. load_all_events()  → 138,622 event                       │
+│ 3. clean_events()     → فك الـ nested columns               │
+│    - extract_location([x,y]) → location_x, location_y      │
+│    - pass_end_location → pass_end_x, pass_end_y             │
+│    - shot_outcome{name} → shot_outcome (string)             │
+│    - is_progressive_pass: end_dist < start_dist * 0.75      │
+│    - distance_to_goal: sqrt((120-x)²+(40-y)²)              │
+│ 4. build_spadl()      → 12 action types موحدة              │
+│ 5. build_shots_for_xg() → 972 shot                         │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 2: feature_engineering.py                              │
+├─────────────────────────────────────────────────────────────┤
+│ Input  : events_clean.parquet                               │
+│ Output : computed_features.parquet (1,034 rows × 48 cols)   │
+├─────────────────────────────────────────────────────────────┤
+│ الـ Features:                                               │
+│ Passing  : total_passes, pass_accuracy, progressive_passes  │
+│ Shooting : total_shots, shot_accuracy, total_xg, xg/shot   │
+│ Positioning: avg_position_x/y, deviation, attacking_tendency│
+│ Pressing : total_pressures, pressure_regains, efficiency    │
+│ Movement : total_carries, progressive_carries, dribbles     │
+│ Physical : total_actions, distance_covered, activity_drop   │
+│ Behavioral: fouls, yellow_cards, ball_retention_rate        │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 3: xg_model.py (LightGBM)                             │
+├─────────────────────────────────────────────────────────────┤
+│ Input  : كل StatsBomb competitions (~69,000 shots)          │
+│ Output : models/xg_model.txt                                │
+│          data/barca_shots_with_xg.parquet                   │
+│ AUC-ROC: 0.7792  |  Brier: 0.0784                         │
+├─────────────────────────────────────────────────────────────┤
+│ Features المستخدمة (مرتبة حسب الأهمية):                    │
+│ 1. distance_to_goal  → sqrt((120-x)²+(40-y)²)             │
+│ 2. angle_to_goal     → abs(arctan2(y-40, 120-x))           │
+│ 3. goal_angle        → زاوية المرمى الكاملة (36→44)        │
+│ 4. dist_squared      → distance² للـ non-linearity         │
+│ 5. is_header         → body_part == "Head"                  │
+│ 6. shot_technique    → Normal/Volley/Half Volley/Lob        │
+│ 7. under_pressure    → flag من StatsBomb                    │
+│ ملاحظة: Penalties اتشالت من التدريب (xG ثابت ~0.76)       │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 4: vaep_model.py (XGBoost)                            │
+├─────────────────────────────────────────────────────────────┤
+│ Input  : spadl_actions.parquet (128,706 actions)            │
+│ Output : models/vaep_offensive_model.json                   │
+│          models/vaep_defensive_model.json                   │
+│          data/player_vaep_ratings.parquet                   │
+│ Offensive AUC: 0.8605  |  Defensive AUC: 0.9360           │
+├─────────────────────────────────────────────────────────────┤
+│ المعادلة:                                                   │
+│ VAEP = (P_score_after - P_score_before)                     │
+│      - (P_concede_after - P_concede_before)                 │
+│                                                             │
+│ Context Window: 3 actions سابقة                             │
+│ Features: 9 base × 4 (current + 3 prev) = 36 feature       │
+│                                                             │
+│ Top Players (La Liga 2015/16):                              │
+│ 1. Messi   → VAEP: 62.13  (Off: 37.00 | Def: 25.13)       │
+│ 2. Neymar  → VAEP: 52.87                                    │
+│ 3. Suarez  → VAEP: 34.70                                    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│ STEP 5: scoring_model.py                                    │
+├─────────────────────────────────────────────────────────────┤
+│ Input  : computed_features + player_vaep + barca_shots_xg  │
+│ Output : data/model_scores.parquet (1,034 rows)             │
+│          models/kmeans_model.pkl                            │
+├─────────────────────────────────────────────────────────────┤
+│ Overall Score Formula:                                      │
+│ = (Position-Weighted Score × 0.80) + (VAEP_norm × 0.20)   │
+│                                                             │
+│ Position Weights Example:                                   │
+│ Attacker:  Shooting 30% | Positioning 20% | Passing 15%    │
+│ Midfielder:Passing 28%  | Pressing 18%   | Positioning 18% │
+│ Defender:  Positioning 25%| Pressing 22% | Passing 18%     │
+│                                                             │
+│ Clusters (K-Means, k=5):                                    │
+│ Creative Playmaker / Box-to-Box Midfielder / Target Forward │
+│ Ball-Playing Defender / Pressing Machine                    │
+│                                                             │
+│ Messi Final Score: 7.00/10                                  │
+│ Radar: Behavioral 9.8 | Positioning 7.0 | Physical 7.7     │
+└─────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PLAYER DASHBOARD — VISUALIZATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+الـ Dashboard بيشتغل عن طريق filter باسم اللاعب.
+بيرجع 9 charts كـ base64 PNG images.
+
+┌─────────┬──────────────────────┬─────────────────────────────┐
+│ Chart # │ الاسم                │ المحتوى                    │
+├─────────┼──────────────────────┼─────────────────────────────┤
+│ 1       │ Radar Chart          │ 7 dimensions (0-10)         │
+│ 2       │ Trend Chart          │ Overall Score over season   │
+│ 3       │ Heatmap              │ KDE density على الملعب      │
+│ 4       │ Pass Map             │ Arrows خضر/حمر للتمريرات   │
+│ 5       │ Score Breakdown      │ Horizontal bars لكل dim    │
+│ 6       │ VAEP Analysis        │ Timeline + Off/Def breakdown│
+│ 7       │ Position Comparison  │ مقارنة بمتوسط المركز       │
+│ 8       │ Shooting Map         │ Shot locations + xG sizes  │
+│ 9       │ Percentile Rankings  │ In team/league/position     │
+└─────────┴──────────────────────┴─────────────────────────────┘
+
+كيف تستخدمه في الكود:
+──────────────────────
+from visualizations.player_dashboard import (
+    get_player_list,      # قائمة كل اللاعبين
+    get_player_data,      # بيانات لاعب معين
+    generate_all_charts,  # كل الـ charts (base64)
+)
+
+# 1. جيب قائمة اللاعبين
+players = get_player_list()
+# → ["Andrés Iniesta Luján", "Lionel Andrés Messi Cuccittini", ...]
+
+# 2. اختار لاعب وولّد الـ charts
+result = generate_all_charts("Messi")
+# result["player_info"]  → info عن اللاعب
+# result["charts"]["radar"]           → base64 PNG
+# result["charts"]["trend"]           → base64 PNG
+# result["charts"]["heatmap"]         → base64 PNG
+# result["charts"]["pass_map"]        → base64 PNG
+# result["charts"]["score_breakdown"] → base64 PNG
+# result["charts"]["vaep"]            → base64 PNG
+# result["charts"]["position_comparison"] → base64 PNG
+# result["charts"]["shooting_map"]    → base64 PNG
+# result["charts"]["percentiles"]     → base64 PNG
+
+كيف تعرض الـ charts في الـ Frontend:
+────────────────────────────────────
+<!-- HTML مثال -->
+<img src="{{ result.charts.radar }}" alt="Radar Chart" />
+
+// React مثال
+<img src={result.charts.radar} alt="Radar Chart" />
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. API ENDPOINTS — FULL REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Base URL: http://localhost:8000/api/v1
+Swagger : http://localhost:8000/docs
+
+┌──────────┬──────────────────────────────────┬───────────────┐
+│ Method   │ Endpoint                         │ الوصف        │
+├──────────┼──────────────────────────────────┼───────────────┤
+│ POST     │ /analyze/match/{match_id}        │ تحليل ماتش   │
+│ POST     │ /analyze/season                  │ تحليل موسم   │
+├──────────┼──────────────────────────────────┼───────────────┤
+│ GET      │ /player/list                     │ كل الأسماء   │
+│ GET      │ /player/{id}/score               │ التقييم       │
+│ GET      │ /player/{id}/stats               │ الإحصائيات   │
+│ GET      │ /player/{id}/history             │ التاريخ       │
+│ GET      │ /player/compare?player_ids=1,2   │ مقارنة        │
+│ GET      │ /player/dashboard/{name}         │ 9 charts ★   │
+├──────────┼──────────────────────────────────┼───────────────┤
+│ GET      │ /team/{id}/summary               │ ملخص فريق    │
+│ GET      │ /team/{id}/heatmap               │ heatmap data  │
+├──────────┼──────────────────────────────────┼───────────────┤
+│ GET      │ /match/{id}/report               │ تقرير ماتش   │
+│ GET      │ /match/{id}/events               │ أحداث ماتش   │
+├──────────┼──────────────────────────────────┼───────────────┤
+│ GET      │ /benchmark/{position}            │ معايير مركز   │
+└──────────┴──────────────────────────────────┴───────────────┘
+★ /player/dashboard/{name} هو الـ endpoint الرئيسي للـ Dashboard
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. DATA FLOW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+StatsBomb API
+     ↓
+data_loader.py → events_clean + spadl + shots_for_xg
+     ↓
+feature_engineering.py → computed_features (48 features)
+     ↓
+xg_model.py → barca_shots_with_xg (predicted_xg)
+     ↓
+vaep_model.py → player_vaep_ratings
+     ↓
+scoring_model.py → model_scores (Overall Score 0-10)
+     ↓
+FastAPI → .NET Backend → Frontend
+     ↓
+player_dashboard.py → 9 Visualizations
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. IMPORTANT NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. UUID:
+   - كل record بيبدأ بـ UUID column اسمها "uuid"
+   - الـ UUID ده هو الـ Primary Key في الـ SQL Server
+   - Deterministic UUIDs بتضمن إن نفس الـ record
+     ليه نفس الـ UUID حتى لو اتعمل re-import
+
+2. Coordinate System (StatsBomb):
+   - الملعب: x = 0→120  |  y = 0→80
+   - المرمى: x=120, y=36→44
+   - بداية الهجوم: x=0, y=40
+
+3. Position Weights:
+   - موجودة في config.py وفي models/position_weights.json
+   - الـ .NET team يقدر يقرأها ويستخدمها في حساباته
+
+4. Data Refresh:
+     - لو عايز تحدّث الداتا: py run_pipeline.py --mode pipeline
+   - الـ UUIDs هتفضل نفسها (deterministic) فمش هتحصل تكرار في الـ DB
+
+5. API Performance:
+   - الـ data بتتحمّل في الـ memory مرة واحدة (@lru_cache)
+   - الـ GET endpoints < 400ms
+   - الـ /player/dashboard يمكن يأخذ 2-5 ثواني
+     (بيولّد 9 charts)
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. FOR .NET BACKEND TEAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Base URL      : http://localhost:8000/api/v1/
+Swagger Docs  : http://localhost:8000/docs
+Format        : JSON (all requests & responses)
+UUID Field    : كل response فيه "uuid" field هو الـ DB key
+
+Dashboard Endpoint (أهم endpoint):
+  GET /api/v1/player/dashboard/{player_name}
+
+Response:
+{
+  "player_info": {
+    "name": "Lionel Andrés Messi Cuccittini",
+    "position": "Attacker",
+    "cluster": "Creative Playmaker",
+    "trend": "Stable",
+    "avg_overall": 7.0,
+    "matches": 33
+  },
+  "charts": {
+    "radar":               "data:image/png;base64,iVBOR...",
+    "trend":               "data:image/png;base64,iVBOR...",
+    "heatmap":             "data:image/png;base64,iVBOR...",
+    "pass_map":            "data:image/png;base64,iVBOR...",
+    "score_breakdown":     "data:image/png;base64,iVBOR...",
+    "vaep":                "data:image/png;base64,iVBOR...",
+    "position_comparison": "data:image/png;base64,iVBOR...",
+    "shooting_map":        "data:image/png;base64,iVBOR...",
+    "percentiles":         "data:image/png;base64,iVBOR..."
+  }
+}
+
+// Frontend usage:
+<img src={response.charts.radar} />
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. MODEL PERFORMANCE SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌───────────────┬──────────────────┬──────────┬──────────────┐
+│ Model         │ Algorithm        │ AUC-ROC  │ Brier Score  │
+├───────────────┼──────────────────┼──────────┼──────────────┤
+│ xG Model      │ LightGBM         │ 0.7792   │ 0.0784       │
+│ VAEP Offensive│ XGBoost          │ 0.8605   │ 0.0076       │
+│ VAEP Defensive│ XGBoost          │ 0.9360   │ 0.0020       │
+│ Clustering    │ K-Means (k=5)    │ —        │ —            │
+└───────────────┴──────────────────┴──────────┴──────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+END OF TUTORIAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

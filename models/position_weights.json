@@ -1,0 +1,38 @@
+{
+  "Attacker": {
+    "passing_score": 0.15,
+    "shooting_score": 0.3,
+    "positioning_score": 0.2,
+    "pressing_score": 0.1,
+    "movement_score": 0.1,
+    "physical_score": 0.08,
+    "behavioral_score": 0.07
+  },
+  "Midfielder": {
+    "passing_score": 0.28,
+    "shooting_score": 0.12,
+    "positioning_score": 0.18,
+    "pressing_score": 0.18,
+    "movement_score": 0.12,
+    "physical_score": 0.07,
+    "behavioral_score": 0.05
+  },
+  "Defender": {
+    "passing_score": 0.18,
+    "shooting_score": 0.05,
+    "positioning_score": 0.25,
+    "pressing_score": 0.22,
+    "movement_score": 0.1,
+    "physical_score": 0.12,
+    "behavioral_score": 0.08
+  },
+  "GK": {
+    "passing_score": 0.2,
+    "shooting_score": 0.02,
+    "positioning_score": 0.3,
+    "pressing_score": 0.15,
+    "movement_score": 0.08,
+    "physical_score": 0.15,
+    "behavioral_score": 0.1
+  }
+}
