@@ -12,9 +12,29 @@ DATA_DIR   = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
 
 # ── StatsBomb ──────────────────────────────────────────────────────────────────
-COMPETITION_ID = 11    # La Liga
-SEASON_ID      = 27    # 2015/16
-TARGET_TEAM    = "Barcelona"
+TARGET_TEAM = "Barcelona"
+
+# Multi-season support: (competition_id, season_id, label)
+# La Liga = competition 11, Champions League = 16, Copa del Rey = 87
+SEASONS_LIST = [
+    (11, 37, "2004/2005"), (11, 38, "2005/2006"),
+    (11, 39, "2006/2007"), (11, 40, "2007/2008"),
+    (11, 41, "2008/2009"), (11, 21, "2009/2010"),
+    (11, 22, "2010/2011"), (11, 23, "2011/2012"),
+    (11, 24, "2012/2013"), (11, 25, "2013/2014"),
+    (11, 26, "2014/2015"), (11, 27, "2015/2016"),
+    (11,  2, "2016/2017"), (11,  4, "2017/2018"),
+    (11, 42, "2018/2019"), (11, 90, "2019/2020"),
+    (11,  1, "2020/2021"),
+]
+
+# Default season for backward compatibility (originally 2015/2016)
+COMPETITION_ID = 11
+SEASON_ID      = 27
+
+# Season label to season_id lookup
+SEASON_LABEL_MAP = {label: sid for _, sid, label in SEASONS_LIST}
+SEASON_ID_MAP    = {sid: label for _, sid, label in SEASONS_LIST}
 
 # ── VAEP ───────────────────────────────────────────────────────────────────────
 VAEP_WINDOW    = 10    # عدد الـ actions للتنبؤ

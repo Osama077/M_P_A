@@ -15,6 +15,12 @@ import PlayerAnomalies from './components/PlayerAnomalies';
 import PlayerConsistency from './components/PlayerConsistency';
 import TopPerformers from './components/TopPerformers';
 import SquadOverview from './components/SquadOverview';
+import SeasonTrends from './components/SeasonTrends';
+import MatchLog from './components/MatchLog';
+import TacticalBoard from './components/TacticalBoard';
+import WhatsNewPage from './components/WhatsNewPage';
+import CoachingInsights from './components/CoachingInsights';
+import MatchPrediction from './components/MatchPrediction';
 
 function AppLayout() {
   const { currentPage, selectedPlayerName, selectedPlayerId, selectedMatchId, userRole, navigate, openPlayerDashboard } = useAppContext();
@@ -51,10 +57,16 @@ function AppLayout() {
     <div className="page-shell">
       <Navigation />
 
-      <main className="mx-auto w-full max-w-7xl px-4 pb-10 pt-6 sm:px-6 lg:px-8 animate-in">
+      <main className="mx-auto w-full max-w-[90%] pb-10 pt-6 animate-in">
         {currentPage === PAGES.OVERVIEW && <HomePage onNavigate={navigate} />}
 
         {currentPage === PAGES.SQUAD_OVERVIEW && <SquadOverview />}
+
+        {currentPage === PAGES.SEASON_TRENDS && <SeasonTrends />}
+
+        {currentPage === PAGES.MATCH_LOG && <MatchLog />}
+
+        {currentPage === PAGES.TACTICAL_BOARD && <TacticalBoard />}
 
         {currentPage === PAGES.PLAYERS && <PlayerList onSelectPlayer={openPlayerDashboard} />}
 
@@ -87,10 +99,20 @@ function AppLayout() {
         {currentPage === PAGES.TOP_PERFORMERS && (
           <TopPerformers onSelectPlayer={openPlayerDashboard} />
         )}
+
+        {currentPage === PAGES.COACHING && (
+          <CoachingInsights playerId={selectedPlayerId} playerName={selectedPlayerName} />
+        )}
+
+        {currentPage === PAGES.PREDICTION && (
+          <MatchPrediction playerId={selectedPlayerId} playerName={selectedPlayerName} />
+        )}
+
+        {currentPage === PAGES.WHATS_NEW && <WhatsNewPage />}
       </main>
 
       <footer className="border-t border-white/60 bg-white/70 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-slate-500 sm:flex-row sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-[90%] flex-col items-center justify-between gap-3 py-5 text-xs text-slate-500 sm:flex-row">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4" />
             <span>Match Performance Analysis Platform</span>

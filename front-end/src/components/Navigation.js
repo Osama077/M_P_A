@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Activity, BarChart3, CheckCircle2, Gauge, Home,
   RefreshCw, SlidersHorizontal, Users, WifiOff,
   TrendingUp, Target, AlertTriangle, GitCompareArrows,
-  Award, Sparkles, Search
+  Award, Sparkles, Search, ClipboardList, Calendar
 } from 'lucide-react';
-import { HealthAPI } from '../api';
+import { HealthAPI, SeasonAPI } from '../api';
 import { PAGES, useAppContext, USER_ROLES } from '../context/AppContext';
 
 const navItems = [
   { id: PAGES.OVERVIEW, label: 'Overview', icon: Home },
   { id: PAGES.SQUAD_OVERVIEW, label: 'Squad', icon: Search },
+  { id: PAGES.SEASON_TRENDS, label: 'Trends', icon: TrendingUp },
+  { id: PAGES.MATCH_LOG, label: 'Match Log', icon: ClipboardList },
+  { id: PAGES.TACTICAL_BOARD, label: 'Tactical Board', icon: Target },
   { id: PAGES.DASHBOARD, label: 'Dashboard', icon: BarChart3 },
   { id: PAGES.ANIMATED, label: 'Animated', icon: Activity },
   { id: PAGES.COMPARISON, label: 'Comparison', icon: Users },
@@ -19,8 +22,11 @@ const navItems = [
   { id: PAGES.MOMENTUM, label: 'Momentum', icon: Target },
   { id: PAGES.ANOMALIES, label: 'Anomalies', icon: AlertTriangle },
   { id: PAGES.CONSISTENCY, label: 'Consistency', icon: Activity },
+  { id: PAGES.COACHING, label: 'Coaching', icon: Sparkles },
+  { id: PAGES.PREDICTION, label: 'Prediction', icon: Activity },
   { id: PAGES.TOP_PERFORMERS, label: 'Top Players', icon: Award },
   { id: PAGES.API_TESTER, label: 'API Tests', icon: SlidersHorizontal },
+  { id: PAGES.WHATS_NEW, label: "What's New", icon: Sparkles },
 ];
 
 const roleOptions = [
@@ -30,9 +36,15 @@ const roleOptions = [
 ];
 
 const Navigation = () => {
-  const { currentPage, navigate, userRole, setUserRole, selectedPlayerName } = useAppContext();
+  const { currentPage, navigate, userRole, setUserRole, selectedPlayerName, selectedSeason, setSelectedSeason, seasonOptions, setSeasonOptions } = useAppContext();
   const [serverStatus, setServerStatus] = useState('checking');
   const [lastCheck, setLastCheck] = useState(null);
+
+  useEffect(() => {
+    SeasonAPI.listSeasons()
+      .then(res => setSeasonOptions(res.seasons || []))
+      .catch(() => {});
+  }, [setSeasonOptions]);
 
   React.useEffect(() => {
     const checkHealth = async () => {
@@ -63,7 +75,7 @@ const Navigation = () => {
 
   return (
     <nav className="sticky top-0 z-30 border-b border-white/60 bg-white/75 backdrop-blur">
-      <div className="mx-auto w-full max-w-7xl px-4 py-3 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[90%] py-3">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
             <div className="rounded-xl bg-gradient-to-br from-brand-600 via-cyan-600 to-violet-600 p-2 text-white shadow-glow">
@@ -82,6 +94,20 @@ const Navigation = () => {
                 {selectedPlayerName.length > 20 ? selectedPlayerName.substring(0, 20) + '...' : selectedPlayerName}
               </span>
             )}
+            <div className="flex items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 text-slate-500" />
+              <select
+                value={selectedSeason || ''}
+                onChange={(e) => setSelectedSeason(e.target.value || null)}
+                className="field w-auto min-w-28 text-xs py-1"
+                aria-label="Select season"
+              >
+                <option value="">All Seasons</option>
+                {seasonOptions.map((s) => (
+                  <option key={s.label} value={s.label}>{s.label}</option>
+                ))}
+              </select>
+            </div>
             <label className="text-xs font-medium uppercase tracking-wide text-slate-500" htmlFor="role-select">
               Role
             </label>

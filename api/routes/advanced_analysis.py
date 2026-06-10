@@ -5,7 +5,7 @@ api/routes/advanced_analysis.py — ML-Driven Advanced Analysis Endpoints
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 import pandas as pd
-from api.routes._shared import _load_data, _sf, _si
+from api.routes._shared import _load_data, _load, _sf, _si
 from pipeline.advanced_analysis import (
     PerformanceForecaster, AnomalyDetector, PlayerSimilarityEngine,
     ConsistencyAnalyzer, MomentumAnalyzer, InjuryRiskEstimator,
@@ -44,8 +44,8 @@ def _get_player_scores(d: dict, player_id: int) -> pd.DataFrame:
 
 
 @router.get("/player/{player_id}/advanced")
-def get_advanced_analysis(player_id: int):
-    d = _load_data()
+def get_advanced_analysis(player_id: int, season: Optional[str] = Query(None)):
+    d = _load(season)
     player_scores = _get_player_scores(d, player_id)
     if not len(player_scores):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -60,8 +60,8 @@ def get_advanced_analysis(player_id: int):
 
 
 @router.get("/player/{player_id}/forecast")
-def get_forecast(player_id: int):
-    d = _load_data()
+def get_forecast(player_id: int, season: Optional[str] = Query(None)):
+    d = _load(season)
     ps = _get_player_scores(d, player_id)
     if not len(ps):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -77,8 +77,8 @@ def get_forecast(player_id: int):
 
 
 @router.get("/player/{player_id}/anomalies")
-def get_anomalies(player_id: int):
-    d = _load_data()
+def get_anomalies(player_id: int, season: Optional[str] = Query(None)):
+    d = _load(season)
     ps = _get_player_scores(d, player_id)
     if not len(ps):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -97,8 +97,9 @@ def get_anomalies(player_id: int):
 def get_similar_players(
     player_id: int,
     top_n: int = Query(8, ge=1, le=20),
+    season: Optional[str] = Query(None),
 ):
-    d = _load_data()
+    d = _load(season)
     ps = d["scores"][d["scores"]["player_id"] == player_id]
     if not len(ps):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -114,8 +115,8 @@ def get_similar_players(
 
 
 @router.get("/player/{player_id}/consistency")
-def get_consistency(player_id: int):
-    d = _load_data()
+def get_consistency(player_id: int, season: Optional[str] = Query(None)):
+    d = _load(season)
     ps = _get_player_scores(d, player_id)
     if not len(ps):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -131,8 +132,8 @@ def get_consistency(player_id: int):
 
 
 @router.get("/player/{player_id}/momentum")
-def get_momentum(player_id: int):
-    d = _load_data()
+def get_momentum(player_id: int, season: Optional[str] = Query(None)):
+    d = _load(season)
     ps = _get_player_scores(d, player_id)
     if not len(ps):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -148,8 +149,8 @@ def get_momentum(player_id: int):
 
 
 @router.get("/player/{player_id}/injury-risk")
-def get_injury_risk(player_id: int):
-    d = _load_data()
+def get_injury_risk(player_id: int, season: Optional[str] = Query(None)):
+    d = _load(season)
     ps = _get_player_scores(d, player_id)
     if not len(ps):
         raise HTTPException(404, f"Player {player_id} not found")
@@ -171,8 +172,9 @@ def get_top_performers(
     position: Optional[str] = Query(None),
     sort_by: str = Query("overall_score", regex="^(overall_score|momentum|consistency)$"),
     limit: int = Query(20, ge=1, le=100),
+    season: Optional[str] = Query(None),
 ):
-    d = _load_data()
+    d = _load(season)
     sc = d["scores"]
 
     if position:

@@ -1,7 +1,7 @@
 """api/routes/squad.py — Squad Overview batch endpoint"""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.routes._shared import _load_data, _sf, _si
+from api.routes._shared import _load, _sf, _si
 
 router = APIRouter()
 
@@ -19,13 +19,8 @@ POS_LABEL_MAP = {"GK": "GK", "Defender": "DF", "Midfielder": "MF", "Attacker": "
 
 
 @router.get("/player/squad-scores")
-def get_squad_scores(match_id: Optional[int] = Query(None)):
-    """
-    Batch endpoint returning all player scores, team stats,
-    insights and season data for the Squad Overview page.
-    If no match_id supplied, defaults to the latest Barcelona match.
-    """
-    d = _load_data()
+def get_squad_scores(match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
+    d = _load(season=season)
     sc = d["scores"]
     cf = d["computed"]
     mt = d["matches"]
@@ -145,15 +140,17 @@ def get_squad_scores(match_id: Optional[int] = Query(None)):
         "possession_pct": None,
     }
 
-    # Possession estimate from passes
+    # Possession estimate: total-action ratio (passes + carries + dribbles + shots)
     opp_ms = match_scores[~match_scores["player_id"].isin(squad_ids)]
     if len(opp_ms):
         opp_cf = cf[(cf["match_id"] == match_id) & (cf["player_id"].isin(opp_ms["player_id"].unique()))]
-        squad_passes = float(squad_cf["total_passes"].sum()) if "total_passes" in squad_cf.columns else 1
-        opp_passes = float(opp_cf["total_passes"].sum()) if "total_passes" in opp_cf.columns else 0
-        total_p = squad_passes + opp_passes
-        if total_p > 0:
-            team_stats["possession_pct"] = round((squad_passes / total_p) * 100, 1)
+        def _total_actions(df):
+            return float(df["total_passes"].sum() + df["total_carries"].sum() + df["total_dribbles"].sum() + df["total_shots"].sum()) if all(c in df.columns for c in ["total_passes","total_carries","total_dribbles","total_shots"]) else None
+        squad_acts = _total_actions(squad_cf)
+        opp_acts = _total_actions(opp_cf)
+        total_a = (squad_acts or 0) + (opp_acts or 0)
+        if squad_acts is not None and opp_acts is not None and total_a > 0:
+            team_stats["possession_pct"] = round((squad_acts / total_a) * 100, 1)
 
     # Insights
     top = max(players, key=lambda p: p["overall_score"] or 0) if players else None

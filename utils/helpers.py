@@ -48,6 +48,12 @@ def normalize_to_score(series: pd.Series, min_val=None, max_val=None) -> pd.Seri
     return score.clip(0, 10)
 
 
+def zscore_to_score(series: pd.Series, cap: float = 2.5) -> pd.Series:
+    """تحويل Series لـ 0-10 باستخدام z-score (افتراضي position-wide)"""
+    z = (series - series.mean()) / (series.std() + 1e-10)
+    return (z / cap * 5 + 5).clip(0, 10).round(2)
+
+
 def load_json(path: str) -> Any:
     with open(path, "r") as f:
         return json.load(f)

@@ -47,7 +47,7 @@ function formatKpi(key, val, teamStats) {
 }
 
 const SquadOverview = () => {
-  const { openPlayerDashboard } = useAppContext();
+  const { openPlayerDashboard, selectedSeason, setSelectedSeason, seasonOptions } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -59,11 +59,12 @@ const SquadOverview = () => {
   const [selectedSquadMatchId, setSelectedSquadMatchId] = useState(null);
   const debouncedSearch = useDebouncedValue(searchTerm, 200);
 
-  const fetchData = useCallback(async (matchId) => {
+  const fetchData = useCallback(async (matchId, seasonOverride) => {
+    const s = seasonOverride !== undefined ? seasonOverride : selectedSeason;
     setLoading(true);
     setError(null);
     try {
-      const result = await SquadAPI.getSquadOverview(matchId);
+      const result = await SquadAPI.getSquadOverview(matchId, s);
       setData(result);
       if (result?.match_context?.match_id) {
         setSelectedSquadMatchId(result.match_context.match_id);
@@ -73,9 +74,10 @@ const SquadOverview = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedSeason]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setSelectedSquadMatchId(null); }, [selectedSeason]);
+  useEffect(() => { fetchData(); }, [fetchData, selectedSeason]);
 
   const handleMatchChange = useCallback((mid) => {
     setSelectedSquadMatchId(mid);
@@ -167,6 +169,20 @@ const SquadOverview = () => {
                 {mc.match_week && <span>Week {mc.match_week}</span>}
                 <span className="font-mono text-brand-600">ID {mc.match_id}</span>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-500">Season</span>
+              <select
+                value={selectedSeason || ''}
+                onChange={(e) => setSelectedSeason(e.target.value || null)}
+                className="field text-xs py-1.5 w-28"
+                aria-label="Select season"
+              >
+                <option value="">All</option>
+                {seasonOptions.map((s) => (
+                  <option key={s.label} value={s.label}>{s.label}</option>
+                ))}
+              </select>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-semibold text-slate-500">Match</span>

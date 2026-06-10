@@ -83,15 +83,17 @@ def compute_pressing_features(events_clean: pd.DataFrame) -> pd.DataFrame:
         total_pressure_dur =("duration",   "sum"),
     ).reset_index()
 
-    cp = events_clean[events_clean["counterpress"] == 1].groupby(
+    # FIX: pressure_regains counts only Pressure events where counterpress == 1,
+    # not ALL events with counterpress. This prevents pressing_efficiency > 100%.
+    cp = pressure[pressure["counterpress"] == 1].groupby(
         ["match_id", "player_id"]
     ).agg(pressure_regains=("event_type", "count")).reset_index()
 
     feat = feat.merge(cp, on=["match_id", "player_id"], how="left")
     feat["pressure_regains"]    = feat["pressure_regains"].fillna(0).astype(int)
     feat["pressing_efficiency"] = (
-        feat["pressure_regains"] / feat["total_pressures"] * 100
-    ).round(2)
+        feat["pressure_regains"] / feat["total_pressures"].replace(0, np.nan) * 100
+    ).round(2).fillna(0)
     return feat
 
 
@@ -128,15 +130,27 @@ def compute_movement_features(events_clean: pd.DataFrame) -> pd.DataFrame:
 
 
 def compute_physical_features(events_clean: pd.DataFrame) -> pd.DataFrame:
-    carry = events_clean[events_clean["event_type"] == "Carry"].copy()
-    carry["carry_distance"] = np.sqrt(
-        (carry["carry_end_x"] - carry["location_x"])**2 +
-        (carry["carry_end_y"] - carry["location_y"])**2
+    # Estimate distance from consecutive event positions
+    # StatsBomb pitch: 120x80 units -> FIFA regulation: ~105m x 68m
+    events = events_clean[
+        events_clean["player_id"].notna() & events_clean["location_x"].notna()
+    ].copy()
+    events = events.sort_values(["match_id", "player_id", "event_index"])
+    events["loc_x_m"] = events["location_x"] * 105.0 / 120.0
+    events["loc_y_m"] = events["location_y"] * 68.0 / 80.0
+    events["prev_x_m"] = events.groupby(["match_id", "player_id"])["loc_x_m"].shift(1)
+    events["prev_y_m"] = events.groupby(["match_id", "player_id"])["loc_y_m"].shift(1)
+    events["segment_dist"] = np.sqrt(
+        (events["loc_x_m"] - events["prev_x_m"])**2 +
+        (events["loc_y_m"] - events["prev_y_m"])**2
     )
+    events["segment_dist"] = events["segment_dist"].where(events["segment_dist"] < 40, 0)
 
-    dist = carry.groupby(["match_id", "player_id"]).agg(
-        distance_covered=("carry_distance", "sum")
+    dist = events.groupby(["match_id", "player_id"]).agg(
+        distance_covered=("segment_dist", "sum")
     ).reset_index()
+    # FIX: Remove undocumented * 5.0 multiplier — coordinates are already converted to meters
+    dist["distance_covered"] = (dist["distance_covered"]).round(0)
 
     actions = events_clean[events_clean["player_id"].notna()].groupby(
         ["match_id", "player_id"]
@@ -159,8 +173,18 @@ def compute_physical_features(events_clean: pd.DataFrame) -> pd.DataFrame:
         drop["actions_p1"].replace(0, np.nan) * 100
     ).round(2).fillna(0)
 
+    # Relative intensity: actions per minute per period
+    drop["intensity_p1"] = (drop["actions_p1"] / 45).round(2)
+    drop["intensity_p2"] = (drop["actions_p2"] / 45).round(2)
+    drop["intensity_drop_pct"] = (
+        (drop["intensity_p1"] - drop["intensity_p2"]) /
+        drop["intensity_p1"].replace(0, np.nan) * 100
+    ).round(2).fillna(0)
+
     feat = actions.merge(dist,  on=["match_id","player_id"], how="left")\
-                  .merge(drop[["match_id","player_id","actions_p1","actions_p2","activity_drop_2nd_half"]],
+                  .merge(drop[["match_id","player_id","actions_p1","actions_p2",
+                               "activity_drop_2nd_half","intensity_p1","intensity_p2",
+                               "intensity_drop_pct"]],
                          on=["match_id","player_id"], how="left").fillna(0)
     return feat
 
@@ -189,19 +213,24 @@ def compute_behavioral_features(events_clean: pd.DataFrame) -> pd.DataFrame:
                 .merge(receipt, on=["match_id","player_id"], how="outer")\
                 .merge(misc,    on=["match_id","player_id"], how="outer").fillna(0)
 
+    # FIX: Players with 0 ball receipts get ball_retention_rate = NaN (neutral),
+    # not 100 (which would reward never touching the ball).
     feat["ball_retention_rate"] = (
         (feat["ball_receipts"] - feat["miscontrols"]) /
         feat["ball_receipts"].replace(0, np.nan) * 100
-    ).round(2).fillna(100)
+    ).round(2)
     return feat
 
 
 def merge_all_features(events_clean: pd.DataFrame) -> pd.DataFrame:
     print("🔄 Computing all features...")
 
+    season_cols = [c for c in ["season_label","season_id","competition_id"]
+                   if c in events_clean.columns]
+    base_cols = ["match_id","player_id","player_name","team_name"] + season_cols
     base = events_clean[
         events_clean["player_id"].notna()
-    ][["match_id","player_id","player_name","team_name"]].drop_duplicates()
+    ][base_cols].drop_duplicates()
 
     dfs = [
         compute_passing_features(events_clean),

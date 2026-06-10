@@ -16,6 +16,13 @@ export const PAGES = {
   CONSISTENCY: 'consistency',
   TOP_PERFORMERS: 'top_performers',
   SQUAD_OVERVIEW: 'squad_overview',
+  SEASON_TRENDS: 'season_trends',
+  MATCH_LOG: 'match_log',
+  TACTICAL_BOARD: 'tactical_board',
+  WHATS_NEW: 'whats_new',
+  COACHING: 'coaching',
+  PREDICTION: 'prediction',
+  DATA_VALIDATION: 'data_validation',
 };
 
 export const USER_ROLES = {
@@ -29,6 +36,8 @@ export function AppProvider({ children }) {
   const [selectedPlayerName, setSelectedPlayerName] = useState('');
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [selectedMatchId, setSelectedMatchId] = useState(null);
+  const [selectedSeason, setSelectedSeason] = useState(null);
+  const [seasonOptions, setSeasonOptions] = useState([]);
   const [userRole, setUserRole] = useState(USER_ROLES.ANALYST);
 
   const navigate = useCallback((page) => setCurrentPage(page), []);
@@ -52,14 +61,18 @@ export function AppProvider({ children }) {
       selectedPlayerName,
       selectedPlayerId,
       selectedMatchId,
+      selectedSeason,
+      seasonOptions,
       userRole,
       navigate,
       setUserRole,
       setSelectedMatchId,
+      setSelectedSeason,
+      setSeasonOptions,
       openPlayerDashboard,
       openAdvancedAnalysis,
     }),
-    [currentPage, selectedPlayerName, selectedPlayerId, selectedMatchId, userRole, navigate, setSelectedMatchId, openPlayerDashboard, openAdvancedAnalysis]
+    [currentPage, selectedPlayerName, selectedPlayerId, selectedMatchId, selectedSeason, seasonOptions, userRole, navigate, setUserRole, setSelectedMatchId, setSelectedSeason, setSeasonOptions, openPlayerDashboard, openAdvancedAnalysis]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

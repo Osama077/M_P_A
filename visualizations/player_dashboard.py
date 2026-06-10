@@ -44,8 +44,20 @@ def get_player_list() -> list[str]:
     return sorted(names)
 
 
+def _fuzzy_match(name_series: pd.Series, query: str) -> pd.Series:
+    """Match if ALL tokens in query appear as substrings in the stored name."""
+    tokens = query.strip().lower().split()
+    mask = pd.Series(False, index=name_series.index)
+    for i, val in enumerate(name_series):
+        if pd.isna(val):
+            continue
+        lower = str(val).lower()
+        if all(tok in lower for tok in tokens):
+            mask.iloc[i] = True
+    return mask
+
 def get_player_data(player_name: str) -> dict:
-    """جيب كل بيانات لاعب معين"""
+    """Fetch all data for a given player (fuzzy name matching)."""
     data    = _load()
     scores  = data["scores"]
     computed= data["computed"]
@@ -53,10 +65,11 @@ def get_player_data(player_name: str) -> dict:
     matches = data["matches"]
     vaep    = data["vaep"]
 
-    # فلتر اللاعب
-    p_scores  = scores[scores["player_name"].str.contains(player_name, case=False, na=False)]
-    p_feats   = computed[computed["player_name"].str.contains(player_name, case=False, na=False)]
-    p_events  = events[events["player_name"].str.contains(player_name, case=False, na=False)]
+    # Filter by player (fuzzy token matching)
+    match_mask = _fuzzy_match(scores["player_name"], player_name)
+    p_scores  = scores[match_mask]
+    p_feats   = computed[computed["player_id"].isin(p_scores["player_id"].unique())]
+    p_events  = events[events["player_id"].isin(p_scores["player_id"].unique())]
     p_vaep    = vaep[vaep["player_id"].isin(p_scores["player_id"].unique())]
 
     if len(p_scores) == 0:

@@ -52,7 +52,7 @@ function initials(name) {
 }
 
 const PlayerProfile = ({ playerName, initialMatchId }) => {
-  const { openPlayerDashboard } = useAppContext();
+  const { openPlayerDashboard, selectedSeason, setSelectedSeason, seasonOptions } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,22 +66,24 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await PlayerProfileAPI.getPlayerProfile(name, matchId);
+      const result = await PlayerProfileAPI.getPlayerProfile(name, matchId, selectedSeason);
       setData(result);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedSeason]);
 
   useEffect(() => {
     setSelectedMatchId(initialMatchId || null);
   }, [playerName, initialMatchId]);
 
+  useEffect(() => { setSelectedMatchId(null); }, [selectedSeason]);
+
   useEffect(() => {
     fetchData(playerName, selectedMatchId);
-  }, [playerName, selectedMatchId, fetchData]);
+  }, [playerName, selectedMatchId, fetchData, selectedSeason]);
 
   const handlePlayerClick = (pid, pname) => {
     openPlayerDashboard(pname, pid, selectedMatchId);
@@ -99,8 +101,9 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
     if (viewMode === 'last5') {
       const td = data.trend_data || [];
       const last5 = td.slice(-5);
-      const values = ['passing', 'shooting', 'positioning', 'pressing', 'movement', 'physical', 'behavioral'].map(key => {
-        const scores = last5.map(t => t.overall_score || 0);
+      const dimKeys = ['passing', 'shooting', 'positioning', 'pressing', 'movement', 'physical', 'behavioral'];
+      const values = dimKeys.map(key => {
+        const scores = last5.map(t => t[key + '_score'] || 0);
         return scores.length ? parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2)) : 0;
       });
       const labels = rd.labels || ['Passing', 'Shooting', 'Positioning', 'Pressing', 'Movement', 'Physical', 'Behavioral'];
@@ -177,7 +180,19 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
             </button>
           ))}
           <div className="ml-auto flex items-center gap-2">
-            <span className="text-[11px] text-slate-500">View</span>
+            <span className="text-[11px] text-slate-500">Season</span>
+            <select
+              value={selectedSeason || ''}
+              onChange={(e) => { setSelectedSeason(e.target.value || null); setSelectedMatchId(null); }}
+              className="field text-xs py-1.5 w-24"
+              aria-label="Select season"
+            >
+              <option value="">All</option>
+              {seasonOptions.map((s) => (
+                <option key={s.label} value={s.label}>{s.label}</option>
+              ))}
+            </select>
+            <span className="text-[11px] text-slate-500">Match</span>
             <select
               value={selectedMatchId || ''}
               onChange={(e) => setSelectedMatchId(Number(e.target.value))}
@@ -268,7 +283,7 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
         <div className="px-5 pb-4 relative z-10">
           <div className="grid grid-cols-7 gap-2">
             {DIM_CONFIG.map((dim) => {
-              const val = (viewMode === 'match' ? data.match_scores?.[dim.key] : viewMode === 'season' ? rd.season_values?.[DIM_CONFIG.indexOf(dim)] : null) || 0;
+              const val = viewMode === 'match' ? data.match_scores?.[dim.key] : viewMode === 'season' ? rd.season_values?.[DIM_CONFIG.indexOf(dim)] : contextScores?.values?.[DIM_CONFIG.indexOf(dim)] || 0;
               return (
                 <div key={dim.key} className="bg-[#161B2288] rounded-lg p-2 text-center border border-[#30363D44]">
                   <div className="text-lg font-black font-mono" style={{ color: dim.color }}>{val.toFixed(1)}</div>

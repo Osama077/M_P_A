@@ -4,6 +4,7 @@ import {
   BarChart3, Award
 } from 'lucide-react';
 import { AdvancedAnalysisAPI } from '../api';
+import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorAlert from './ErrorAlert';
 
@@ -16,6 +17,7 @@ const sortOptions = [
 const positions = ['All', 'Attacker', 'Midfielder', 'Defender', 'GK'];
 
 const TopPerformers = ({ onSelectPlayer }) => {
+  const { selectedSeason } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,7 +31,7 @@ const TopPerformers = ({ onSelectPlayer }) => {
         setLoading(true);
         setError(null);
         const pos = position === 'All' ? null : position;
-        const result = await AdvancedAnalysisAPI.getTopPerformers(sortBy, pos, minMatches);
+        const result = await AdvancedAnalysisAPI.getTopPerformers(sortBy, pos, minMatches, selectedSeason);
         setData(result);
       } catch (err) {
         setError(err.message);
@@ -38,7 +40,7 @@ const TopPerformers = ({ onSelectPlayer }) => {
       }
     };
     fetch();
-  }, [sortBy, position, minMatches]);
+  }, [sortBy, position, minMatches, selectedSeason]);
 
   const results = data?.results || [];
 

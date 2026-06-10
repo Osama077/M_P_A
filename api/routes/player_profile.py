@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 import numpy as np
 import pandas as pd
-from api.routes._shared import _load_data, _sf, _si
+from api.routes._shared import _load, _sf, _si
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,13 @@ SHOT_OUTCOME_MAP = {
 def _pct_rank(val, series):
     if len(series) == 0:
         return 50
-    return int(round((series < val).sum() / len(series) * 100))
+    raw = (series < val).sum() / len(series) * 100
+    # Bayesian shrinkage: pull low-sample players toward positional mean
+    n = len(series)
+    prior = 50.0
+    k = 5.0
+    shrunk = (n / (n + k)) * raw + (k / (n + k)) * prior
+    return int(round(shrunk))
 
 
 def _initials(name):
@@ -55,16 +61,20 @@ def _player_color(pid):
 
 
 @router.get("/player/profile/{player_name}")
-def get_player_profile(player_name: str, match_id: Optional[int] = Query(None)):
-    d = _load_data()
+def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
+    d = _load(season=season)
     sc = d["scores"]
     cf = d["computed"]
     mt = d["matches"]
     ev = d["events"]
     vaep = d["vaep"]
 
-    # Find player
-    player_rows = sc[sc["player_name"].str.contains(player_name, case=False, na=False)]
+    # Find player (fuzzy token matching)
+    tokens = player_name.strip().lower().split()
+    def _match(val):
+        if pd.isna(val): return False
+        return all(tok in str(val).lower() for tok in tokens)
+    player_rows = sc[sc["player_name"].apply(_match)]
     if not len(player_rows):
         raise HTTPException(404, f"Player '{player_name}' not found")
     pid = int(player_rows["player_id"].iloc[0])
@@ -276,6 +286,14 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None)):
             "week": week,
             "date": date,
             "overall_score": _sf(tr.get("overall_score")),
+            "passing_score": _sf(tr.get("passing_score")),
+            "shooting_score": _sf(tr.get("shooting_score")),
+            "positioning_score": _sf(tr.get("positioning_score")),
+            "pressing_score": _sf(tr.get("pressing_score")),
+            "movement_score": _sf(tr.get("movement_score")),
+            "physical_score": _sf(tr.get("physical_score")),
+            "behavioral_score": _sf(tr.get("behavioral_score")),
+            "position_fit_score": _sf(tr.get("position_fit_score")),
             "is_current": mid == match_id,
         })
 

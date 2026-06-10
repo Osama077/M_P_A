@@ -18,6 +18,7 @@ from utils.helpers import ensure_dirs
 FEATURE_COLS = [
     "x", "y", "distance_to_goal", "dist_squared",
     "angle_to_goal", "goal_angle", "x_squared",
+    "angle_squared", "shot_angle_interaction",
     "under_pressure", "is_header", "is_penalty",
     "is_free_kick", "is_first_time",
 ]
@@ -61,6 +62,8 @@ def _engineer_shot_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFram
     )
     df["x_squared"]    = df["x"] ** 2
     df["dist_squared"] = df["distance_to_goal"] ** 2
+    df["angle_squared"] = df["angle_to_goal"] ** 2
+    df["shot_angle_interaction"] = df["distance_to_goal"] * df["angle_to_goal"]
 
     def get_name(v, default="Normal"):
         if isinstance(v, dict): return v.get("name", default)
@@ -202,6 +205,12 @@ def run():
     print("=" * 60)
     print("🎯 PIPELINE STEP 3: xG Model (LightGBM)")
     print("=" * 60)
+    model_path = MODELS_DIR / "xg_model.txt"
+    if model_path.exists():
+        print("📦 xG model already exists — loading and predicting on Barcelona shots")
+        barca = predict_on_barca()
+        print(f"\n✅ Step 3 Complete! Prediction only (model was already trained).")
+        return barca
     model = train()
     barca = predict_on_barca(model)
     print(f"\n✅ Step 3 Complete! AUC metrics saved.")

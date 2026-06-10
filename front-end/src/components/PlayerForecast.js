@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, BarChart3,
-
 } from 'lucide-react';
 import { AdvancedAnalysisAPI } from '../api';
+import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorAlert from './ErrorAlert';
 
@@ -32,6 +32,7 @@ const ForecastCard = ({ label, value, suffix, icon: Icon, color }) => {
 };
 
 const PlayerForecast = ({ playerId, playerName }) => {
+  const { selectedSeason } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -41,7 +42,7 @@ const PlayerForecast = ({ playerId, playerName }) => {
       try {
         setLoading(true);
         setError(null);
-        const result = await AdvancedAnalysisAPI.getForecast(playerId);
+        const result = await AdvancedAnalysisAPI.getForecast(playerId, selectedSeason);
         setData(result);
       } catch (err) {
         setError(err.message);
@@ -50,7 +51,7 @@ const PlayerForecast = ({ playerId, playerName }) => {
       }
     };
     if (playerId) fetch();
-  }, [playerId]);
+  }, [playerId, selectedSeason]);
 
   if (loading) return <LoadingSpinner message="Computing performance forecast..." />;
   if (error) return <ErrorAlert message={error} />;

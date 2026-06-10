@@ -1,13 +1,24 @@
 """api/routes/match.py"""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.routes._shared import _load_data, _sf, _si, _to_records
+from api.routes._shared import _load, _load_data, _sf, _si, _to_records
 
 router = APIRouter()
 
+@router.get("/match/list")
+def match_list(season: Optional[str] = Query(None)):
+    d = _load(season=season)
+    df = d["matches"].copy()
+    df = df.sort_values("match_date", ascending=False)
+    cols = ["match_id", "match_date", "home_team", "away_team",
+            "home_score", "away_score", "match_week", "competition",
+            "season", "stadium", "season_label"]
+    available = [c for c in cols if c in df.columns]
+    return {"matches": _to_records(df[available])}
+
 @router.get("/match/{match_id}/report")
-def match_report(match_id: int):
-    d  = _load_data()
+def match_report(match_id: int, season: Optional[str] = Query(None)):
+    d  = _load(season=season)
     mi = d["matches"][d["matches"]["match_id"] == match_id]
     if not len(mi): raise HTTPException(404, f"Match {match_id} not found")
     m  = mi.iloc[0]
@@ -40,8 +51,9 @@ def match_events(match_id: int,
                  player_id:  Optional[int] = Query(None),
                  event_type: Optional[str] = Query(None),
                  period:     Optional[int] = Query(None),
+                 season:     Optional[str] = Query(None),
                  limit: int = Query(100), offset: int = Query(0)):
-    d  = _load_data()
+    d  = _load(season=season)
     ev = d["events"][d["events"]["match_id"] == match_id].copy()
     if not len(ev): raise HTTPException(404, f"Match {match_id} not found")
     if player_id:  ev = ev[ev["player_id"] == player_id]

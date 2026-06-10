@@ -11,7 +11,7 @@ from statsbombpy import sb
 
 from config import (
     COMPETITION_ID, SEASON_ID, TARGET_TEAM,
-    ACTION_TYPE_MAP, DATA_DIR
+    ACTION_TYPE_MAP, DATA_DIR, SEASONS_LIST, SEASON_ID_MAP
 )
 from utils.uuid_manager import add_uuid_column, add_uuids_to_all
 from utils.helpers import ensure_dirs
@@ -23,19 +23,24 @@ warnings.filterwarnings("ignore")
 # 1. LOAD RAW DATA
 # ──────────────────────────────────────────────────────────────────────────────
 
-def load_matches() -> pd.DataFrame:
-    """تحميل ماتشات Barcelona في La Liga 2015/16"""
+def load_matches(competition_id: int = COMPETITION_ID,
+                 season_id: int = SEASON_ID) -> pd.DataFrame:
+    """Load Barcelona matches for a given competition + season"""
     all_matches = sb.matches(
-        competition_id=COMPETITION_ID,
-        season_id=SEASON_ID
+        competition_id=competition_id,
+        season_id=season_id
     )
+    if all_matches.empty:
+        return pd.DataFrame()
+
     barca = all_matches[
         (all_matches["home_team"] == TARGET_TEAM) |
         (all_matches["away_team"] == TARGET_TEAM)
     ].reset_index(drop=True)
 
     barca = add_uuid_column(barca, "uuid", based_on=["match_id"])
-    print(f"✅ Matches loaded: {len(barca)}")
+    season_label = SEASON_ID_MAP.get(season_id, f"unknown_{season_id}")
+    print(f"✅ [{season_label}] Matches loaded: {len(barca)}")
     return barca
 
 
@@ -95,9 +100,15 @@ def _extract_pass_details(df: pd.DataFrame) -> pd.DataFrame:
 
     def is_progressive(row):
         try:
-            s = np.sqrt((120 - row["location_x"])**2 + (40 - row["location_y"])**2)
-            e = np.sqrt((120 - row["pass_end_x"])**2 + (40 - row["pass_end_y"])**2)
-            return int(e < s * 0.75)
+            start_x, end_x = row["location_x"], row["pass_end_x"]
+            start_y, end_y = row["location_y"], row["pass_end_y"]
+            fwd_dist = end_x - start_x
+            # Forward pass threshold: moves ball > 20m toward opposition goal
+            passes_threshold = fwd_dist > 20
+            # Zone entry: pass ends in final third (x > 80) or penalty area (x > 102, 18 < y < 62)
+            enters_final_third = end_x > 80
+            enters_penalty_area = end_x > 102 and 18 < end_y < 62
+            return int(passes_threshold or enters_penalty_area or (enters_final_third and fwd_dist > 5))
         except:
             return 0
 
@@ -304,6 +315,8 @@ def build_shots_for_xg(events_clean: pd.DataFrame) -> pd.DataFrame:
 # 5. SAVE & LOAD
 # ──────────────────────────────────────────────────────────────────────────────
 
+SEASONS_DIR = DATA_DIR / "seasons"
+
 def save_all(matches, events_clean, lineups, spadl, shots_xg):
     ensure_dirs(DATA_DIR)
     matches.to_parquet(DATA_DIR / "matches.parquet",         index=False)
@@ -312,6 +325,18 @@ def save_all(matches, events_clean, lineups, spadl, shots_xg):
     spadl.to_parquet(DATA_DIR / "spadl_actions.parquet",     index=False)
     shots_xg.to_parquet(DATA_DIR / "shots_for_xg.parquet",  index=False)
     print("✅ All data saved to data/")
+
+
+def save_season(season_label, matches, events_clean, lineups, spadl, shots_xg):
+    """Save per-season data to data/seasons/{season_label}/"""
+    season_dir = SEASONS_DIR / season_label.replace("/", "_")
+    ensure_dirs(season_dir)
+    matches.to_parquet(season_dir / "matches.parquet",         index=False)
+    events_clean.to_parquet(season_dir / "events_clean.parquet", index=False)
+    lineups.to_parquet(season_dir / "lineups.parquet",         index=False)
+    spadl.to_parquet(season_dir / "spadl_actions.parquet",     index=False)
+    shots_xg.to_parquet(season_dir / "shots_for_xg.parquet",  index=False)
+    print(f"✅ [{season_label}] Season data saved to seasons/{season_label.replace('/', '_')}/")
 
 
 def load_all() -> dict:
@@ -324,39 +349,94 @@ def load_all() -> dict:
     }
 
 
+def load_season(season_label: str) -> dict:
+    """Load a single season from per-season parquet files."""
+    season_dir = SEASONS_DIR / season_label.replace("/", "_")
+    return {
+        "matches":       pd.read_parquet(season_dir / "matches.parquet"),
+        "events_clean":  pd.read_parquet(season_dir / "events_clean.parquet"),
+        "lineups":       pd.read_parquet(season_dir / "lineups.parquet"),
+        "spadl":         pd.read_parquet(season_dir / "spadl_actions.parquet"),
+        "shots_for_xg":  pd.read_parquet(season_dir / "shots_for_xg.parquet"),
+    }
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ──────────────────────────────────────────────────────────────────────────────
 
-def run():
+def run(seasons=None):
+    """
+    Load data for one or more seasons.
+
+    Parameters
+    ----------
+    seasons : list of (competition_id, season_id, label), optional
+        Defaults to all SEASONS_LIST in config.
+    """
+    if seasons is None:
+        seasons = SEASONS_LIST
+
     print("=" * 60)
     print("📊 PIPELINE STEP 1: Data Loading & Preprocessing")
+    print(f"   Seasons to load: {len(seasons)}")
     print("=" * 60)
 
-    matches       = load_matches()
-    events_df, lineups_df = load_all_events(matches)
-    events_clean  = clean_events(events_df)
-    lineups_df    = add_uuid_column(lineups_df, "uuid",
-                        based_on=["match_id", "player_id"]
-                        if "player_id" in lineups_df.columns else None)
-    spadl         = build_spadl(events_clean)
-    shots_xg      = build_shots_for_xg(events_clean)
+    all_matches      = []
+    all_events_clean = []
+    all_lineups      = []
+    all_spadl        = []
+    all_shots_xg     = []
 
-    save_all(matches, events_clean, lineups_df, spadl, shots_xg)
+    for comp_id, season_id, season_label in seasons:
+        print(f"\n── Loading {season_label} (comp={comp_id}, season={season_id}) ──")
 
-    print("\n✅ Step 1 Complete!")
-    print(f"   Matches      : {len(matches)}")
-    print(f"   Events       : {len(events_clean):,}")
-    print(f"   SPADL Actions: {len(spadl):,}")
-    print(f"   Shots for xG : {len(shots_xg):,}")
+        matches = load_matches(competition_id=comp_id, season_id=season_id)
+        if matches.empty:
+            print(f"  ⚠️  No Barcelona matches for {season_label}, skipping")
+            continue
 
-    return {
-        "matches":      matches,
-        "events_clean": events_clean,
-        "lineups":      lineups_df,
-        "spadl":        spadl,
-        "shots_xg":     shots_xg,
-    }
+        events_df, lineups_df = load_all_events(matches)
+        events_clean  = clean_events(events_df)
+        lineups_df    = add_uuid_column(lineups_df, "uuid",
+                            based_on=["match_id", "player_id"]
+                            if "player_id" in lineups_df.columns else None)
+        spadl         = build_spadl(events_clean)
+        shots_xg      = build_shots_for_xg(events_clean)
+
+        # Add season identifiers
+        for df in [matches, events_clean, lineups_df, spadl, shots_xg]:
+            df["season_label"] = season_label
+            df["season_id"]    = season_id
+            df["competition_id"] = comp_id
+
+        # Save per-season
+        save_season(season_label, matches, events_clean, lineups_df, spadl, shots_xg)
+
+        all_matches.append(matches)
+        all_events_clean.append(events_clean)
+        all_lineups.append(lineups_df)
+        all_spadl.append(spadl)
+        all_shots_xg.append(shots_xg)
+
+    # Concatenate all seasons
+    if all_matches:
+        combined = {
+            "matches":      pd.concat(all_matches,      ignore_index=True),
+            "events_clean": pd.concat(all_events_clean, ignore_index=True),
+            "lineups":      pd.concat(all_lineups,      ignore_index=True),
+            "spadl":        pd.concat(all_spadl,        ignore_index=True),
+            "shots_xg":     pd.concat(all_shots_xg,     ignore_index=True),
+        }
+        save_all(**combined)
+        print(f"\n✅ Step 1 Complete!")
+        print(f"   Seasons loaded: {len(all_matches)}")
+        print(f"   Matches total : {sum(len(m) for m in all_matches)}")
+        print(f"   Events total  : {sum(len(e) for e in all_events_clean):,}")
+        return combined
+
+    print("⚠️  No data loaded for any season")
+    return None
 
 
 if __name__ == "__main__":

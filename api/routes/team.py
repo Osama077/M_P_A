@@ -1,13 +1,13 @@
 """api/routes/team.py"""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.routes._shared import _load_data, _sf, _si, _to_records
+from api.routes._shared import _load, _sf, _si, _to_records
 
 router = APIRouter()
 
 @router.get("/team/{team_id}/summary")
-def team_summary(team_id: str, match_id: Optional[int] = Query(None)):
-    d = _load_data()
+def team_summary(team_id: str, match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
+    d = _load(season=season)
     sc = d["scores"]
     mask = sc["team_name"].astype(str).str.contains(str(team_id), case=False, na=False) if "team_name" in sc.columns \
            else sc["team"].astype(str).str.contains(str(team_id), case=False, na=False)
@@ -37,8 +37,8 @@ def team_summary(team_id: str, match_id: Optional[int] = Query(None)):
 
 
 @router.get("/team/{team_id}/heatmap")
-def team_heatmap(team_id: str, match_id: int = Query(...), player_id: Optional[int] = Query(None)):
-    d = _load_data()
+def team_heatmap(team_id: str, match_id: int = Query(...), player_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
+    d = _load(season=season)
     ev = d["events"][(d["events"]["match_id"] == match_id) & d["events"]["location_x"].notna()]
     if player_id:
         ev = ev[ev["player_id"] == player_id]

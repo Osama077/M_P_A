@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Users, Target, UserX } from 'lucide-react';
 import { AdvancedAnalysisAPI } from '../api';
+import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorAlert from './ErrorAlert';
 
@@ -12,6 +13,7 @@ const DIM_LABELS = {
 };
 
 const PlayerSimilarity = ({ playerId, playerName, onSelectPlayer }) => {
+  const { selectedSeason } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -22,7 +24,7 @@ const PlayerSimilarity = ({ playerId, playerName, onSelectPlayer }) => {
       setLoading(true);
       setError(null);
       try {
-        const result = await AdvancedAnalysisAPI.getSimilarPlayers(playerId);
+        const result = await AdvancedAnalysisAPI.getSimilarPlayers(playerId, 8, selectedSeason);
         setData(result);
       } catch (err) {
         setError(err.message);
@@ -31,7 +33,7 @@ const PlayerSimilarity = ({ playerId, playerName, onSelectPlayer }) => {
       }
     };
     fetch();
-  }, [playerId]);
+  }, [playerId, selectedSeason]);
 
   if (!playerId) {
     return (

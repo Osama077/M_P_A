@@ -8,6 +8,7 @@ import {
   Tooltip, ResponsiveContainer
 } from 'recharts';
 import { PlayerAPI, CompareAPI } from '../api';
+import { useAppContext } from '../context/AppContext';
 import ErrorAlert from './ErrorAlert';
 
 const DIM_CONFIG = [
@@ -59,6 +60,7 @@ const INSIGHT_TEXT = {
 };
 
 const PlayerCompare = () => {
+  const { selectedSeason } = useAppContext();
   const [players, setPlayers] = useState([]);
   const [p1Id, setP1Id] = useState(null);
   const [p2Id, setP2Id] = useState(null);
@@ -73,7 +75,7 @@ const PlayerCompare = () => {
   useEffect(() => {
     const fetchPlayers = async () => {
       try {
-        const res = await PlayerAPI.getPlayerList();
+        const res = await PlayerAPI.getPlayerList(selectedSeason);
         setPlayers(res.player_items || []);
       } catch (err) {
         setError(err.message);
@@ -82,7 +84,7 @@ const PlayerCompare = () => {
       }
     };
     fetchPlayers();
-  }, []);
+  }, [selectedSeason]);
 
   // Auto-set first two players when list loads
   useEffect(() => {
@@ -98,14 +100,14 @@ const PlayerCompare = () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await CompareAPI.getHeadToHead(p1, p2, ctx, ctx === 'match' ? mid : null);
+      const res = await CompareAPI.getHeadToHead(p1, p2, ctx, ctx === 'match' ? mid : null, selectedSeason);
       setData(res);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedSeason]);
 
   useEffect(() => {
     if (p1Id && p2Id && p1Id !== p2Id) {

@@ -4,10 +4,12 @@ import {
   Layers, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { AdvancedAnalysisAPI } from '../api';
+import { useAppContext } from '../context/AppContext';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorAlert from './ErrorAlert';
 
 const PlayerConsistency = ({ playerId, playerName }) => {
+  const { selectedSeason } = useAppContext();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,7 +19,7 @@ const PlayerConsistency = ({ playerId, playerName }) => {
       try {
         setLoading(true);
         setError(null);
-        const result = await AdvancedAnalysisAPI.getConsistency(playerId);
+        const result = await AdvancedAnalysisAPI.getConsistency(playerId, selectedSeason);
         setData(result);
       } catch (err) {
         setError(err.message);
@@ -26,7 +28,7 @@ const PlayerConsistency = ({ playerId, playerName }) => {
       }
     };
     if (playerId) fetch();
-  }, [playerId]);
+  }, [playerId, selectedSeason]);
 
   const consistencyColors = {
     'Very Consistent': { bg: 'bg-emerald-50 border-emerald-300', text: 'text-emerald-700', icon: CheckCircle2, color: '#10b981' },
