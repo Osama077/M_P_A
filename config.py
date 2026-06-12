@@ -17,9 +17,6 @@ TARGET_TEAM = "Barcelona"
 # Multi-season support: (competition_id, season_id, label)
 # La Liga = competition 11, Champions League = 16, Copa del Rey = 87
 SEASONS_LIST = [
-    (11, 37, "2004/2005"), (11, 38, "2005/2006"),
-    (11, 39, "2006/2007"), (11, 40, "2007/2008"),
-    (11, 41, "2008/2009"), (11, 21, "2009/2010"),
     (11, 22, "2010/2011"), (11, 23, "2011/2012"),
     (11, 24, "2012/2013"), (11, 25, "2013/2014"),
     (11, 26, "2014/2015"), (11, 27, "2015/2016"),
@@ -41,6 +38,7 @@ VAEP_WINDOW    = 10    # عدد الـ actions للتنبؤ
 VAEP_N_CONTEXT = 3     # عدد الـ actions السابقة
 
 # ── Scoring ────────────────────────────────────────────────────────────────────
+# Legacy dimension weights (for backward compatibility)
 POSITION_WEIGHTS = {
     "Attacker": {
         "passing_score":     0.15,
@@ -80,6 +78,48 @@ POSITION_WEIGHTS = {
     },
 }
 
+# ── V2 Scoring: 4-Pillar Contribution Model ──
+# Position weights for the four contribution sub-scores
+CONTRIBUTION_WEIGHTS = {
+    "Attacker":   {"offensive": 0.50, "defensive": 0.05, "possession": 0.20, "event_value": 0.25},
+    "Midfielder": {"offensive": 0.25, "defensive": 0.15, "possession": 0.35, "event_value": 0.25},
+    "Defender":   {"offensive": 0.10, "defensive": 0.40, "possession": 0.25, "event_value": 0.25},
+    "GK":         {"offensive": 0.02, "defensive": 0.50, "possession": 0.23, "event_value": 0.25},
+}
+
+# Feature-level weights within each contribution pillar (per position)
+# Each key maps to (feature_name, weight) pairs
+OFFENSIVE_FEATURES = {
+    "Attacker":   {"total_shots": 0.15, "predicted_xg": 0.25, "shot_accuracy": 0.10, "goals": 0.20, "xg_overperformance": 0.10, "progressive_passes": 0.05, "progressive_carries": 0.05, "successful_dribbles": 0.05, "total_carries": 0.05},
+    "Midfielder": {"total_shots": 0.10, "predicted_xg": 0.10, "shot_accuracy": 0.05, "goals": 0.05, "xg_overperformance": 0.05, "progressive_passes": 0.25, "progressive_carries": 0.15, "successful_dribbles": 0.10, "total_carries": 0.10, "passes_under_pressure": 0.05},
+    "Defender":   {"total_shots": 0.05, "predicted_xg": 0.05, "goals": 0.05, "progressive_passes": 0.30, "progressive_carries": 0.30, "successful_dribbles": 0.10, "total_carries": 0.15},
+    "GK":         {"total_shots": 0.00, "goals": 0.00, "progressive_passes": 0.50, "total_carries": 0.50},
+}
+
+DEFENSIVE_FEATURES = {
+    "Attacker":   {"total_pressures": 0.40, "pressure_regains": 0.30, "pressing_efficiency": 0.20, "fouls_won": 0.10},
+    "Midfielder": {"total_pressures": 0.30, "pressure_regains": 0.25, "pressing_efficiency": 0.15, "fouls_committed": -0.10, "fouls_won": 0.10, "yellow_cards": -0.05, "red_cards": -0.10},
+    "Defender":   {"total_pressures": 0.25, "pressure_regains": 0.20, "pressing_efficiency": 0.10, "fouls_committed": -0.10, "fouls_won": 0.15, "yellow_cards": -0.10, "red_cards": -0.15, "miscontrols": -0.05},
+    "GK":         {"total_pressures": 0.10, "pressure_regains": 0.10, "fouls_committed": -0.10, "yellow_cards": -0.05, "red_cards": -0.20, "miscontrols": -0.10},
+}
+
+POSSESSION_FEATURES = {
+    "Attacker":   {"pass_accuracy": 0.25, "total_passes": 0.10, "ball_retention_rate": 0.20, "ball_receipts": 0.15, "miscontrols": -0.10, "progressive_passes": 0.10, "passes_under_pressure": 0.10},
+    "Midfielder": {"pass_accuracy": 0.20, "total_passes": 0.20, "ball_retention_rate": 0.15, "ball_receipts": 0.15, "miscontrols": -0.10, "progressive_passes": 0.10, "passes_under_pressure": 0.10},
+    "Defender":   {"pass_accuracy": 0.25, "total_passes": 0.15, "ball_retention_rate": 0.20, "ball_receipts": 0.10, "miscontrols": -0.10, "progressive_passes": 0.10, "passes_under_pressure": 0.10},
+    "GK":         {"pass_accuracy": 0.30, "total_passes": 0.15, "ball_retention_rate": 0.25, "ball_receipts": 0.10, "miscontrols": -0.10, "progressive_passes": 0.10},
+}
+
+# Rating scale labels
+RATING_LABELS = {
+    (9.0, 10.0): "Exceptional",
+    (8.0, 9.0):  "Excellent",
+    (7.0, 8.0):  "Very Good",
+    (6.0, 7.0):  "Good",
+    (5.0, 6.0):  "Average",
+    (0.0, 5.0):  "Below Average",
+}
+
 POSITION_MAP = {
     "Goalkeeper":            "GK",
     "Right Back":            "Defender",
@@ -102,6 +142,37 @@ POSITION_MAP = {
     "Left Center Forward":   "Attacker",
     "Center Forward":        "Attacker",
     "Secondary Striker":     "Attacker",
+}
+
+# Granular position mapping (8 roles) — Phase 4.5
+GRANULAR_POSITION_MAP = {
+    "Goalkeeper":            "Goalkeeper",
+    "Right Back":            "Full Back",
+    "Left Back":             "Full Back",
+    "Center Back":           "Center Back",
+    "Right Center Back":     "Center Back",
+    "Left Center Back":      "Center Back",
+    "Right Wing Back":       "Full Back",
+    "Left Wing Back":        "Full Back",
+    "Defensive Midfield":    "Defensive Midfielder",
+    "Center Midfield":       "Central Midfielder",
+    "Right Center Midfield": "Central Midfielder",
+    "Left Center Midfield":  "Central Midfielder",
+    "Attacking Midfield":    "Attacking Midfielder",
+    "Right Midfield":        "Winger",
+    "Left Midfield":         "Winger",
+    "Right Wing":            "Winger",
+    "Left Wing":             "Winger",
+    "Right Center Forward":  "Striker",
+    "Left Center Forward":   "Striker",
+    "Center Forward":        "Striker",
+    "Secondary Striker":     "Attacking Midfielder",
+}
+
+GRANULAR_POSITION_LABELS = {
+    "Goalkeeper": "GK", "Center Back": "CB", "Full Back": "FB",
+    "Defensive Midfielder": "DMF", "Central Midfielder": "CMF",
+    "Attacking Midfielder": "AMF", "Winger": "WG", "Striker": "ST",
 }
 
 ACTION_TYPE_MAP = {

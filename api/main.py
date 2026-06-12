@@ -5,7 +5,7 @@ api/main.py — FastAPI Application
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import player, team, match, benchmark, analysis, advanced_analysis, squad, player_profile, metadata, coaching
+from api.routes import player, team, match, benchmark, analysis, advanced_analysis, squad, player_profile, metadata, coaching, position_kpi_routes
 
 app = FastAPI(
     title       ="Match Performance Analysis API",
@@ -34,6 +34,7 @@ app.include_router(squad.router,           prefix="/api/v1", tags=["Squad"])
 app.include_router(player_profile.router,  prefix="/api/v1", tags=["Player Profile"])
 app.include_router(metadata.router,         prefix="/api/v1", tags=["Metadata"])
 app.include_router(coaching.router,         prefix="/api/v1", tags=["Coaching"])
+app.include_router(position_kpi_routes.router, prefix="/api/v1", tags=["Position KPI"])
 
 
 @app.get("/")

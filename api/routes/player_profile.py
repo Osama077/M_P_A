@@ -4,12 +4,12 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 import numpy as np
 import pandas as pd
-from api.routes._shared import _load, _sf, _si
+from api.routes._shared import _load, _sf, _si, GRANULAR_LABELS
 
 logger = logging.getLogger(__name__)
 
 try:
-    from visualizations.player_dashboard import heatmap_chart, pass_map_chart, shooting_map_chart, get_player_data
+    from visualizations.player_dashboard import heatmap_chart, pass_map_chart, shooting_map_chart, saves_map_chart, get_player_data
     HAS_VIZ = True
 except ImportError as e:
     logger.warning("visualizations.player_dashboard not available: %s", e)
@@ -26,6 +26,11 @@ CLUSTER_SHORT = {
 }
 
 POS_GROUP_LABEL = {"GK": "GK", "Defender": "DF", "Midfielder": "MF", "Attacker": "FW"}
+
+COARSE_TO_GRANULAR = {
+    "GK": "Goalkeeper", "Defender": "Center Back",
+    "Midfielder": "Central Midfielder", "Attacker": "Winger",
+}
 
 SHOT_OUTCOME_MAP = {
     "Goal": "goal", "Saved": "saved", "Blocked": "blocked",
@@ -130,6 +135,11 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
     cluster_raw = str(r.get("player_cluster", "Unknown"))
     cluster_short = CLUSTER_SHORT.get(cluster_raw, cluster_raw.lower().replace(" ", "-"))
 
+    pos_granular = str(r.get("position_granular", ""))
+    if not pos_granular or pos_granular == "Unknown":
+        pos_granular = COARSE_TO_GRANULAR.get(pgroup, "Central Midfielder")
+    pos_short = GRANULAR_LABELS.get(pos_granular, pgroup[:2].upper())
+
     # Season averages
     season_avg_overall = _sf(player_sc["overall_score"].mean())
     season_best = _sf(player_sc["overall_score"].max())
@@ -145,6 +155,8 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
         "initials": _initials(pname),
         "position_group": pgroup,
         "position_label": POS_GROUP_LABEL.get(pgroup, pgroup[:2].upper()),
+        "position_granular": pos_granular,
+        "position_short": pos_short,
         "player_cluster": cluster_short,
         "performance_trend": str(r.get("performance_trend", "Stable")),
         "season_avg": season_avg_overall,
@@ -207,6 +219,32 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
             "fouls_committed": _si(cf_r.get("fouls_committed")),
             "ball_receipts": _si(cf_r.get("ball_receipts")),
         }
+        # Goalkeeper-specific stats from events
+        if pgroup == "GK":
+            match_events = ev[(ev["match_id"] == match_id)]
+            gk_saves = match_events[
+                (match_events["shot_outcome"] == "Saved") & (match_events["player_id"] == pid)
+            ]
+            # Determine GK's team
+            gk_teams = match_events[match_events["player_id"] == pid]["team_id"].dropna().unique()
+            gk_team_id = int(gk_teams[0]) if len(gk_teams) else None
+            gk_goals_conceded = pd.DataFrame()
+            if gk_team_id is not None:
+                gk_goals_conceded = match_events[
+                    (match_events["event_type"] == "Shot")
+                    & (match_events["shot_outcome"] == "Goal")
+                    & (match_events["team_id"] != gk_team_id)
+                    & (match_events["team_id"].notna())
+                ]
+            saves_cnt = len(gk_saves)
+            goals_con_cnt = len(gk_goals_conceded)
+            shots_faced = saves_cnt + goals_con_cnt
+            match_stats["saves"] = saves_cnt
+            match_stats["goals_conceded"] = goals_con_cnt
+            match_stats["shots_faced"] = shots_faced
+            match_stats["save_pct"] = round(
+                saves_cnt / max(saves_cnt + goals_con_cnt, 1) * 100, 1
+            )
 
     # Percentiles vs position (use season averages for all players in same position)
     pos_players = sc[sc["position_group"] == pgroup]
@@ -376,7 +414,10 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
         event_item = None
         if etype == "Shot":
             mapped = SHOT_OUTCOME_MAP.get(outcome, "missed")
-            event_item = {"minute": minute, "type": "shot", "outcome": mapped, "xg": round(xg, 2) if xg else None}
+            if pgroup == "GK":
+                event_item = {"minute": minute, "type": "save", "outcome": mapped, "xg": round(xg, 2) if xg else None}
+            else:
+                event_item = {"minute": minute, "type": "shot", "outcome": mapped, "xg": round(xg, 2) if xg else None}
         elif etype == "Dribble":
             event_item = {"minute": minute, "type": "dribble", "outcome": "complete" if do == "Complete" else "incomplete"}
         elif etype == "Carry" and is_prog_carry:
@@ -418,7 +459,10 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
             if viz_player_data is not None:
                 charts["heatmap"] = heatmap_chart(viz_player_data, match_id)
                 charts["pass_map"] = pass_map_chart(viz_player_data, match_id)
-                charts["shot_map"] = shooting_map_chart(viz_player_data, match_id)
+                if pgroup == "GK":
+                    charts["shot_map"] = saves_map_chart(viz_player_data, match_id, ev)
+                else:
+                    charts["shot_map"] = shooting_map_chart(viz_player_data, match_id)
         except Exception as e:
             logger.warning("Failed to generate chart images: %s", e)
 

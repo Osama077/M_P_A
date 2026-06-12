@@ -1,7 +1,7 @@
 """api/routes/player.py"""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from api.routes._shared import _load, _sf, _si, _to_records, _get_available_seasons
+from api.routes._shared import _load, _sf, _si, _to_records, _get_available_seasons, GRANULAR_LABELS
 from visualizations.player_dashboard import generate_all_charts, get_player_list, get_player_chart_data
 
 router = APIRouter()
@@ -51,12 +51,23 @@ def get_score(player_id: int, match_id: Optional[int] = Query(None), season: Opt
         row = ps.merge(d["matches"][["match_id","match_date"]], on="match_id", how="left")\
                 .sort_values("match_date").iloc[-1]
 
+    pos_group = str(row.get("position_group", "Unknown"))
+    pos_granular = str(row.get("position_granular", ""))
+    if not pos_granular or pos_granular == "Unknown":
+        coarse_map = {"GK": "Goalkeeper", "Defender": "Center Back",
+                       "Midfielder": "Central Midfielder", "Attacker": "Winger"}
+        pos_granular = coarse_map.get(pos_group, "Central Midfielder")
+
     return {
         "uuid":        str(row.get("uuid","")),
         "player_id":   _si(row["player_id"]),
         "player_name": str(row["player_name"]),
         "match_id":    _si(row["match_id"]),
-        "position":    str(row.get("position_group","Unknown")),
+        "position":    pos_group,
+        "position_granular": pos_granular,
+        "position_short": GRANULAR_LABELS.get(pos_granular, pos_group[:2].upper()),
+        "position_kpi_label": str(row.get("position_kpi_label", "")),
+        "confidence": str(row.get("confidence", "high")),
         "scores": {
             "overall_score":      _sf(row["overall_score"]),
             "passing_score":      _sf(row["passing_score"]),
