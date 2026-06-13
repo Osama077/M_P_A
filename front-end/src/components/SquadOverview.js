@@ -22,7 +22,6 @@ const DIM_COLORS = {
 };
 
 const KPI_CONFIG = [
-  { key: 'avg_overall_score', label: 'Squad Avg Score', suffix: '', color: 'emerald', badge: null },
   { key: 'total_passes', label: 'Total Passes', color: 'blue', badge: (d) => `${d?.pass_accuracy?.toFixed(1) || '—'}% acc` },
   { key: 'total_shots', label: 'Total Shots', color: 'red', badge: (d) => `${d?.shots_on_target || 0} on target` },
   { key: 'total_xg', label: 'Team xG', color: 'emerald', badge: null },
@@ -40,7 +39,6 @@ const KPI_BAR_COLORS = {
 function formatKpi(key, val, teamStats) {
   if (val === null || val === undefined) return '—';
   if (key === 'possession_pct') return `${val.toFixed(1)}%`;
-  if (key === 'avg_overall_score') return val.toFixed(1);
   if (key === 'total_xg' || key === 'team_vaep') return val.toFixed(2);
   if (key === 'total_passes' || key === 'total_shots' || key === 'total_dribbles' || key === 'total_pressures') return Math.round(val);
   return val;
@@ -345,7 +343,10 @@ const SquadOverview = () => {
                 Pos {sortIcon('position_group')}
               </th>
               <th className="px-3 py-2.5 text-left font-bold text-slate-600 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleSort('overall_score')}>
-                ML Score {sortIcon('overall_score')}
+                KPI {sortIcon('overall_score')}
+              </th>
+              <th className="px-3 py-2.5 text-left font-bold text-slate-600 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleSort('position_kpi')}>
+                Pos. Rating {sortIcon('position_kpi')}
               </th>
               <th className="px-3 py-2.5 text-left font-bold text-slate-600 cursor-pointer select-none whitespace-nowrap" onClick={() => toggleSort('position_fit_score')}>
                 Fit {sortIcon('position_fit_score')}
@@ -428,6 +429,17 @@ const SquadOverview = () => {
                           </div>
                         </div>
                       </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-black font-mono ${
+                          p.position_kpi >= 8 ? 'bg-purple-100 text-purple-700' :
+                          p.position_kpi >= 7 ? 'bg-violet-100 text-violet-700' :
+                          p.position_kpi >= 6 ? 'bg-indigo-100 text-indigo-700' :
+                          p.position_kpi >= 5 ? 'bg-blue-100 text-blue-700' :
+                          'bg-slate-100 text-slate-500'
+                        }`} style={{ border: '1px solid #7c3aed44' }}>
+                          {p.position_kpi?.toFixed(1) || '—'}
+                        </span>
+                      </td>
                       <td className="px-3 py-2 font-mono text-xs font-bold" style={{ color: p.position_fit_score >= 7 ? '#22c55e' : p.position_fit_score >= 5 ? '#f59e0b' : '#ef4444' }}>
                         {p.position_fit_score?.toFixed(1) || '—'}
                       </td>
@@ -486,8 +498,7 @@ const SquadOverview = () => {
                         {p.last_5_scores?.length > 0 ? (
                           <div className="flex items-end gap-px h-5">
                             {p.last_5_scores.map((s, i) => {
-                              const max = Math.max(...p.last_5_scores);
-                              const h = Math.round((s / (max || 1)) * 18) + 2;
+                              const h = Math.round((s / 10) * 18) + 2;
                               return (
                                 <div
                                   key={i}
@@ -507,7 +518,7 @@ const SquadOverview = () => {
             })}
             {filteredPlayers.length === 0 && (
               <tr>
-                <td colSpan={16} className="px-3 py-8 text-center text-sm text-slate-500">
+                                    <td colSpan={17} className="px-3 py-8 text-center text-sm text-slate-500">
                   No players match the current filters.
                 </td>
               </tr>
@@ -533,7 +544,6 @@ const TeamInfoCard = ({ ts, matchContext: mc, seasonStats: ss, insights }) => (
       </div>
       <div className="p-4 space-y-4">
         {[
-          { label: 'Squad Avg Score', val: ts?.avg_overall_score, max: 10, color: '#22c55e' },
           { label: 'Pass Accuracy', val: ts?.pass_accuracy, max: 100, suffix: '%', color: '#3b82f6' },
           { label: 'Team xG', val: ts?.total_xg, max: 5, color: '#f59e0b' },
           { label: 'Shots on Target', val: ts?.shots_on_target, max: Math.max(ts?.shots_on_target || 1, 1), color: '#ef4444' },

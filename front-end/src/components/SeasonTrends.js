@@ -44,7 +44,6 @@ const SeasonTrends = () => {
   const { summary, score_evolution, form_cards, heatmap, rankings, metric_trends, scatter } = data;
 
   const statCards = [
-    { label: 'Squad Avg Score', value: summary.squad_avg_score?.toFixed(1), sub: `${summary.total_matches || 0} matches`, color: 'text-emerald-600', border: 'border-l-emerald-500' },
     { label: 'Avg Pass Accuracy', value: summary.avg_pass_accuracy ? `${summary.avg_pass_accuracy.toFixed(1)}%` : '—', sub: 'Season average', color: 'text-blue-600', border: 'border-l-blue-500' },
     { label: 'Total Goals', value: summary.total_goals_scored ?? '—', sub: summary.goals_per_match ? `${summary.goals_per_match.toFixed(1)}/match` : '', color: 'text-red-600', border: 'border-l-red-500' },
     { label: 'Team xG (Season)', value: summary.team_xg?.toFixed(1), sub: 'Expected goals', color: 'text-amber-600', border: 'border-l-amber-500' },
@@ -54,7 +53,6 @@ const SeasonTrends = () => {
   const scoreEvoData = score_evolution?.match_weeks?.map((w, i) => {
     const row = { week: `W${w}` };
     score_evolution.players?.forEach(p => { row[p.player_name] = p.scores?.[i]; });
-    row['Squad Avg'] = score_evolution.squad_avg?.[i];
     return row;
   }) || [];
 
@@ -153,12 +151,11 @@ const SeasonTrends = () => {
       {/* Score Evolution */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="px-4 py-2.5 border-b border-slate-100 flex justify-between items-center">
-          <span className="text-xs font-bold text-slate-700">ML Score Evolution — All Matches</span>
+          <span className="text-xs font-bold text-slate-700">KPI Evolution — All Matches</span>
           <div className="flex gap-2 text-[10px] text-slate-400">
             {score_evolution?.players?.map((p, i) => (
               <span key={p.player_name}><span style={{ color: COLORS[i] }}>━</span> {p.player_name.split(' ').slice(-1)[0]}</span>
             ))}
-            <span><span className="text-slate-300">━</span> Squad Avg</span>
           </div>
         </div>
         <div className="p-4">
@@ -171,7 +168,6 @@ const SeasonTrends = () => {
               {score_evolution?.players?.map((p, i) => (
                 <Line key={p.player_name} type="monotone" dataKey={p.player_name} stroke={COLORS[i]} strokeWidth={2} dot={false} connectNulls />
               ))}
-              <Line type="monotone" dataKey="Squad Avg" stroke="#94a3b8" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls />
               <ReferenceLine y={7.0} stroke="#f85149" strokeDasharray="5 3" strokeOpacity={0.4} />
             </LineChart>
           </ResponsiveContainer>
@@ -235,7 +231,7 @@ const SeasonTrends = () => {
         {/* Rankings */}
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="px-4 py-2.5 border-b border-slate-100 flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-700">Season Rankings — By ML Score</span>
+            <span className="text-xs font-bold text-slate-700">Season Rankings — By KPI</span>
           </div>
           <div className="overflow-y-auto max-h-[340px]" style={{ scrollbarWidth: 'thin' }}>
             <table className="w-full border-collapse">
@@ -316,8 +312,8 @@ const SeasonTrends = () => {
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                 <XAxis dataKey="vaep_rating" name="VAEP Rating" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
                   label={{ value: 'VAEP Rating (Season Avg)', position: 'bottom', offset: 10, style: { fontSize: 10, fill: '#94a3b8' } }} />
-                <YAxis dataKey="overall_score" name="ML Score" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
-                  label={{ value: 'ML Overall Score', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 10, fill: '#94a3b8' } }} />
+                <YAxis dataKey="overall_score" name="KPI Rating" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false}
+                  label={{ value: 'KPI Rating', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 10, fill: '#94a3b8' } }} />
                 <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 11 }}
                   formatter={(value, name) => [value?.toFixed(2), name]} />
                 <ReferenceLine segment={[{ x: -1.5, y: 5 }, { x: 2.5, y: 9 }]} stroke="#94a3b8" strokeDasharray="5 3" strokeOpacity={0.5} />

@@ -104,7 +104,7 @@ def match_analysis_complete(match_id: int, season: Optional[str] = Query(None)):
     timeline = []
     for _, er in match_events.iterrows():
         etype = str(er.get("event_type", ""))
-        if etype in ("Half Start", "Half End", "Starting XI", "Player Off", "Player On", "Substitution", "Tactical Shift", "Injury Stoppage", "Referee Ball-Drop", "Bad Behaviour", "Camera off", "Camera On", "50/50"):
+        if etype in ("Half Start", "Half End", "Starting XI", "Tactical Shift", "Injury Stoppage", "Referee Ball-Drop", "Bad Behaviour", "Camera off", "Camera On", "50/50"):
             continue
         timeline.append({
             "minute": _si(er.get("minute")),

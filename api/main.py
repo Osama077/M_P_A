@@ -39,11 +39,18 @@ app.include_router(position_kpi_routes.router, prefix="/api/v1", tags=["Position
 
 @app.get("/")
 def health_check():
+    from pathlib import Path
+    from config import DATA_DIR
+    required_files = ["events_clean.parquet", "computed_features.parquet", "model_scores.parquet", "matches.parquet"]
+    missing = [f for f in required_files if not (DATA_DIR / f).exists()]
+    status = "degraded" if missing else "running"
     return {
-        "status":  "running",
+        "status":  status,
         "api":     "Match Performance Analysis API",
         "version": "1.0.0",
         "docs":    "/docs",
+        "data_files_ok": len(missing) == 0,
+        "missing_files": missing if missing else None,
     }
 
 

@@ -1,0 +1,31 @@
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_unimported = false
+no_implicit_optional = true
+check_untyped_defs = false
+exclude = [
+    "build/",
+    "front-end/",
+    "notebooks/",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["api", "pipeline", "utils"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

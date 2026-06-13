@@ -5,6 +5,7 @@ Provides tactical advice, match predictions, and data validation reports.
 
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+import os
 import numpy as np
 import pandas as pd
 from api.routes._shared import _load, _sf, _si
@@ -21,15 +22,16 @@ guidance_engine = CoachingGuidanceEngine()
 predictor = MatchPredictor()
 validator = DataValidator()
 
-TEAM_NAME = "Barcelona"
+TEAM_NAME = os.environ.get("TARGET_TEAM", "Barcelona")
 BARCA_MATCH_IDS_CACHE = {}
 
 
 def _get_barca_match_ids(d):
-    key = id(d["scores"])
+    scores = d["scores"]
+    key = (TEAM_NAME, id(scores), scores.shape[0], scores["match_id"].iloc[0] if len(scores) else 0)
     if key not in BARCA_MATCH_IDS_CACHE:
-        is_barca = d["scores"]["team_name"].astype(str).str.contains(TEAM_NAME, case=False, na=False)
-        BARCA_MATCH_IDS_CACHE[key] = d["scores"][is_barca]["match_id"].unique()
+        is_barca = scores["team_name"].astype(str).str.contains(TEAM_NAME, case=False, na=False)
+        BARCA_MATCH_IDS_CACHE[key] = scores[is_barca]["match_id"].unique()
     return BARCA_MATCH_IDS_CACHE[key]
 
 

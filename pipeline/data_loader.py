@@ -1,6 +1,6 @@
 """
 pipeline/data_loader.py — Data Loading & Preprocessing
-يقابل Notebook 01
+Corresponds to Notebook 01
 """
 
 import pandas as pd
@@ -45,7 +45,7 @@ def load_matches(competition_id: int = COMPETITION_ID,
 
 
 def load_all_events(matches_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """تحميل Events وLineups لكل الماتشات"""
+    """Load Events and Lineups for all matches."""
     all_events, all_lineups = [], []
 
     for idx, row in matches_df.iterrows():
@@ -173,7 +173,7 @@ def _extract_dribble_details(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def clean_events(events_df: pd.DataFrame) -> pd.DataFrame:
-    """تنظيف وتحضير الـ events"""
+    """Clean and prepare events."""
     print("🔄 Cleaning events...")
     df = events_df.copy()
 
@@ -247,7 +247,7 @@ def clean_events(events_df: pd.DataFrame) -> pd.DataFrame:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def build_spadl(events_clean: pd.DataFrame) -> pd.DataFrame:
-    """تحويل Events لـ SPADL-like format"""
+    """Convert Events to SPADL-like format."""
     print("🔄 Building SPADL actions...")
 
     df = events_clean[
@@ -297,7 +297,7 @@ def _get_result(row) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def build_shots_for_xg(events_clean: pd.DataFrame) -> pd.DataFrame:
-    """استخراج Shot events جاهزة للـ xG Model"""
+    """Extract shot events ready for xG Model."""
     shots = events_clean[events_clean["event_type"] == "Shot"][[
         "event_id", "match_id", "player_id", "player_name",
         "location_x", "location_y", "distance_to_goal", "angle_to_goal",
@@ -327,7 +327,8 @@ def save_all(matches, events_clean, lineups, spadl, shots_xg):
     print("✅ All data saved to data/")
 
 
-def save_season(season_label, matches, events_clean, lineups, spadl, shots_xg):
+def save_season(season_label, matches, events_clean, lineups, spadl, shots_xg,
+                computed_features=None, model_scores=None):
     """Save per-season data to data/seasons/{season_label}/"""
     season_dir = SEASONS_DIR / season_label.replace("/", "_")
     ensure_dirs(season_dir)
@@ -336,6 +337,10 @@ def save_season(season_label, matches, events_clean, lineups, spadl, shots_xg):
     lineups.to_parquet(season_dir / "lineups.parquet",         index=False)
     spadl.to_parquet(season_dir / "spadl_actions.parquet",     index=False)
     shots_xg.to_parquet(season_dir / "shots_for_xg.parquet",  index=False)
+    if computed_features is not None:
+        computed_features.to_parquet(season_dir / "computed_features.parquet", index=False)
+    if model_scores is not None:
+        model_scores.to_parquet(season_dir / "model_scores.parquet", index=False)
     print(f"✅ [{season_label}] Season data saved to seasons/{season_label.replace('/', '_')}/")
 
 

@@ -48,6 +48,10 @@ def run_full_pipeline(seasons=None):
     from pipeline.metadata_loader import run as run_metadata
     run_metadata()
 
+    # Step 7: Position-specific KPI Rating Engine
+    from pipeline.position_kpi import run as run_position_kpi
+    run_position_kpi()
+
     print("\n" + "=" * 60)
     print("FULL PIPELINE COMPLETE!")
     print("=" * 60)
@@ -57,7 +61,7 @@ def run_full_pipeline(seasons=None):
 def run_api():
     import uvicorn
     from api.main import app
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=8001, reload=False)
 
 
 def parse_seasons(season_str: str):

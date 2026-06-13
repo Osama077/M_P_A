@@ -43,6 +43,10 @@ artifacts/
 front-end/node_modules/
 front-end/build/
 
+# Generated data artifacts
+models/*.json
+static/
+
 # Generic caches and logs
 *.log
 .cache/

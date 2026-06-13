@@ -2,7 +2,7 @@ import React from 'react';
 import {
   ArrowRight, Bot, ChartArea, Compass, GitCompareArrows,
   ListChecks, Sparkles, TrendingUp, Target, AlertTriangle,
-  Activity, Award
+  Activity, Award, Shield
 } from 'lucide-react';
 import { PAGES } from '../context/AppContext';
 
@@ -31,6 +31,12 @@ const HomePage = ({ onNavigate }) => {
       description: 'Predict future performance with confidence intervals and trend analysis.',
       target: PAGES.FORECAST,
       icon: TrendingUp,
+    },
+    {
+      title: 'Position Dashboards',
+      description: 'Role-specific KPI views with per-position metrics and player rankings.',
+      target: PAGES.POSITION,
+      icon: Shield,
     },
     {
       title: 'Player Similarity',

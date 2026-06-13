@@ -448,7 +448,7 @@ const PlayerCompare = () => {
                 </thead>
                 <tbody>
                   {[
-                    ['ML Overall Score', p1.overall_score, p2.overall_score, (v) => v?.toFixed(1)],
+                    ['KPI Rating', p1.overall_score, p2.overall_score, (v) => v?.toFixed(1)],
                     ['Passing Score', p1.scores?.passing, p2.scores?.passing, (v) => v?.toFixed(1)],
                     ['Shooting Score', p1.scores?.shooting, p2.scores?.shooting, (v) => v?.toFixed(1)],
                     ['Positioning Score', p1.scores?.positioning, p2.scores?.positioning, (v) => v?.toFixed(1)],

@@ -1,4 +1,5 @@
 # 🎯 Match Performance Analysis — Frontend Integration Guide
+# NOTE: This document may be out of date. Refer to front-end/src/ for current implementation.
 
 ## 📦 Project Summary
 

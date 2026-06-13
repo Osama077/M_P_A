@@ -1,10 +1,11 @@
 """api/routes/player_profile.py — Comprehensive Player Profile endpoint"""
 import logging
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from typing import Optional
 import numpy as np
 import pandas as pd
 from api.routes._shared import _load, _sf, _si, GRANULAR_LABELS
+from config import TARGET_TEAM
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ def _player_color(pid):
 
 
 @router.get("/player/profile/{player_name}")
-def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
+def get_player_profile(player_name: str = Path(..., max_length=100), match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
     d = _load(season=season)
     sc = d["scores"]
     cf = d["computed"]
@@ -92,7 +93,7 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
 
     # Determine match context
     squad_match_ids = sc.loc[
-        sc["team_name"].astype(str).str.contains("Barcelona", case=False, na=False),
+        sc["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False),
         "match_id"
     ].unique()
     barca_player_match_ids = sorted(set(player_match_ids) & set(squad_match_ids))
@@ -176,7 +177,7 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
         match_scores_dict[dl] = _sf(s.get(dk))
 
     # Squad mates for player selector
-    squad_ms = sc[(sc["match_id"] == match_id) & (sc["team_name"].astype(str).str.contains("Barcelona", case=False, na=False))]
+    squad_ms = sc[(sc["match_id"] == match_id) & (sc["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False))]
     squad_mates = []
     for _, sr in squad_ms.iterrows():
         spid = int(sr["player_id"])
@@ -234,7 +235,6 @@ def get_player_profile(player_name: str, match_id: Optional[int] = Query(None), 
                     (match_events["event_type"] == "Shot")
                     & (match_events["shot_outcome"] == "Goal")
                     & (match_events["team_id"] != gk_team_id)
-                    & (match_events["team_id"].notna())
                 ]
             saves_cnt = len(gk_saves)
             goals_con_cnt = len(gk_goals_conceded)

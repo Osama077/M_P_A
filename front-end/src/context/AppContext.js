@@ -18,11 +18,11 @@ export const PAGES = {
   SQUAD_OVERVIEW: 'squad_overview',
   SEASON_TRENDS: 'season_trends',
   MATCH_LOG: 'match_log',
-  TACTICAL_BOARD: 'tactical_board',
   WHATS_NEW: 'whats_new',
   COACHING: 'coaching',
   PREDICTION: 'prediction',
   DATA_VALIDATION: 'data_validation',
+  POSITION: 'position',
 };
 
 export const USER_ROLES = {

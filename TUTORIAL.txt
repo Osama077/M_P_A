@@ -2,8 +2,9 @@
   MATCH PERFORMANCE ANALYSIS — DEVELOPER TUTORIAL
   Sports Performance Management Platform · ML Component
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NOTE: This file may be out of date. See README.md and source code for current documentation.
 
-ما اللي عملناه في الـ Session دي؟
+What was done in this session?
 ────────────────────────────────────────────────────────────
 حولنا 6 Jupyter Notebooks منفصلة لـ Python project منظم
 بكل الـ best practices، UUID لكل record، player dashboard

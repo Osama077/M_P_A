@@ -2,6 +2,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from api.routes._shared import _load, _sf, _si, _to_records, _get_available_seasons, GRANULAR_LABELS
+from config import TARGET_TEAM
 from visualizations.player_dashboard import generate_all_charts, get_player_list, get_player_chart_data
 
 router = APIRouter()
@@ -70,6 +71,7 @@ def get_score(player_id: int, match_id: Optional[int] = Query(None), season: Opt
         "confidence": str(row.get("confidence", "high")),
         "scores": {
             "overall_score":      _sf(row["overall_score"]),
+            "kpi_score":          _sf(row.get("kpi_score")),
             "passing_score":      _sf(row["passing_score"]),
             "shooting_score":     _sf(row["shooting_score"]),
             "positioning_score":  _sf(row["positioning_score"]),
@@ -166,8 +168,13 @@ def compare(player_ids: str = Query(...), match_id: Optional[int] = Query(None),
     for pid in ids:
         ps = d["scores"][d["scores"]["player_id"] == pid]
         if not len(ps): continue
-        row = ps[ps["match_id"]==match_id].iloc[0] if match_id and len(ps[ps["match_id"]==match_id]) \
-              else ps.mean(numeric_only=True)
+        score_cols = ["overall_score", "passing_score", "shooting_score", "positioning_score",
+                       "pressing_score", "movement_score", "physical_score", "behavioral_score", "vaep_rating"]
+        avail_score_cols = [c for c in score_cols if c in ps.columns]
+        if match_id and len(ps[ps["match_id"]==match_id]):
+            row = ps[ps["match_id"]==match_id].iloc[0]
+        else:
+            row = ps[avail_score_cols].mean()
         result.append({
             "player_id":    pid,
             "player_name":  str(ps.iloc[0]["player_name"]),
@@ -378,20 +385,27 @@ def head_to_head(
             "color": "#00D084" if tr_diff < 0 else "#F85149",
         })
 
-    # Shared matches
-    p1_scores = sc[sc["player_id"] == p1][["match_id", "overall_score", "performance_trend"]]
-    p2_scores = sc[sc["player_id"] == p2][["match_id", "overall_score", "performance_trend"]]
+    # Shared matches — include computed feature columns
+    shared_cols = ["match_id", "overall_score", "performance_trend"]
+    p1_scores = sc[sc["player_id"] == p1][shared_cols].merge(
+        cf[cf["player_id"] == p1][["match_id", "total_xg", "goals", "assists", "total_shots", "shots_on_target", "pass_accuracy"]],
+        on="match_id", how="left"
+    )
+    p2_scores = sc[sc["player_id"] == p2][shared_cols].merge(
+        cf[cf["player_id"] == p2][["match_id", "total_xg", "goals", "assists", "total_shots", "shots_on_target", "pass_accuracy"]],
+        on="match_id", how="left"
+    )
     shared = p1_scores.merge(p2_scores, on="match_id", suffixes=("_p1", "_p2")).merge(
         mt[["match_id", "match_week", "home_team", "away_team", "home_score", "away_score", "match_date"]],
         on="match_id"
     )
     barca_matches = shared[
-        shared["home_team"].str.contains("Barcelona", case=False, na=False) |
-        shared["away_team"].str.contains("Barcelona", case=False, na=False)
+        shared["home_team"].str.contains(TARGET_TEAM, case=False, na=False) |
+        shared["away_team"].str.contains(TARGET_TEAM, case=False, na=False)
     ]
     shared_matches = []
     for _, r in barca_matches.sort_values("match_week", ascending=False).iterrows():
-        is_home = "Barcelona" in str(r.get("home_team", ""))
+        is_home = TARGET_TEAM in str(r.get("home_team", ""))
         opponent = str(r.get("away_team", "")) if is_home else str(r.get("home_team", ""))
         h = int(r.get("home_score", 0))
         a = int(r.get("away_score", 0))
@@ -407,6 +421,12 @@ def head_to_head(
             "p2_score": _sf(r.get("overall_score_p2")),
             "p1_trend": str(r.get("performance_trend_p1", "Stable"))[:2],
             "p2_trend": str(r.get("performance_trend_p2", "Stable"))[:2],
+            "p1_xg": _sf(r.get("total_xg_x")),
+            "p2_xg": _sf(r.get("total_xg_y")),
+            "p1_goals": _si(r.get("goals_x")),
+            "p2_goals": _si(r.get("goals_y")),
+            "p1_assists": _si(r.get("assists_x")),
+            "p2_assists": _si(r.get("assists_y")),
         })
 
     # Available matches
@@ -415,8 +435,8 @@ def head_to_head(
         on="match_id"
     )
     all_barca = all_barca[
-        all_barca["home_team"].str.contains("Barcelona", case=False, na=False) |
-        all_barca["away_team"].str.contains("Barcelona", case=False, na=False)
+        all_barca["home_team"].str.contains(TARGET_TEAM, case=False, na=False) |
+        all_barca["away_team"].str.contains(TARGET_TEAM, case=False, na=False)
     ]
     available_matches = [
         {
@@ -519,7 +539,7 @@ def get_season_trends(season: Optional[str] = Query(None)):
     vaep_df = d["vaep"]
 
     # Filter to Barcelona squad
-    is_barca = sc["team_name"].astype(str).str.contains("Barcelona", case=False, na=False)
+    is_barca = sc["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False)
     barca = sc[is_barca].copy()
     barca_ids = barca["player_id"].unique()
 
@@ -722,7 +742,10 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
     mt = d["matches"]
     ev = d["events"]
 
-    is_barca = sc["team_name"].astype(str).str.contains("Barcelona", case=False, na=False)
+    def _total_actions(df):
+        return float(df["total_passes"].sum() + df["total_carries"].sum() + df["total_dribbles"].sum() + df["total_shots"].sum()) if all(c in df.columns for c in ["total_passes","total_carries","total_dribbles","total_shots"]) else None
+
+    is_barca = sc["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False)
     barca = sc[is_barca].copy()
     barca_ids = barca["player_id"].unique()
     barca_match_ids = barca["match_id"].unique()
@@ -736,8 +759,9 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
         else:
             detail_match_id = int(barca_match_ids[0]) if len(barca_match_ids) else None
 
-    # Build match list
+    # Build match list + cache team stats for detail reuse
     match_list = []
+    _match_stats_cache = {}
     for _, mr in barca_mt.iterrows():
         mid = int(mr["match_id"])
         ms = sc[sc["match_id"] == mid]
@@ -752,7 +776,7 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
         a_team = str(mr.get("away_team", ""))
         h_score = _si(mr.get("home_score"))
         a_score = _si(mr.get("away_score"))
-        is_home = "Barcelona" in h_team
+        is_home = TARGET_TEAM in h_team
         opp = a_team if is_home else h_team
         if is_home:
             result = "W" if h_score > a_score else ("D" if h_score == a_score else "L")
@@ -767,8 +791,6 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
 
         # Possession estimate: total-action ratio (passes + carries + dribbles + shots)
         opp_cf = cf[(cf["match_id"] == mid) & (cf["player_id"].isin(opp_ms["player_id"].unique()))]
-        def _total_actions(df):
-            return float(df["total_passes"].sum() + df["total_carries"].sum() + df["total_dribbles"].sum() + df["total_shots"].sum()) if all(c in df.columns for c in ["total_passes","total_carries","total_dribbles","total_shots"]) else None
         barca_acts = _total_actions(barca_cf)
         opp_acts = _total_actions(opp_cf)
         possession = round((barca_acts / (barca_acts + opp_acts)) * 100, 1) if barca_acts is not None and opp_acts is not None and (barca_acts + opp_acts) > 0 else None
@@ -776,6 +798,16 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
         # Goals scored / conceded
         goals_for = h_score if is_home else a_score
         goals_against = a_score if is_home else h_score
+
+        # Cache for detail reuse
+        _match_stats_cache[mid] = {
+            "barca_ms": barca_ms, "opp_ms": opp_ms, "barca_cf": barca_cf, "opp_cf": opp_cf,
+            "h_team": h_team, "a_team": a_team, "h_score": h_score, "a_score": a_score,
+            "is_home": is_home, "opp": opp, "result": result,
+            "squad_avg": squad_avg, "possession": possession,
+            "total_xg": total_xg, "total_shots": total_shots,
+            "goals_for": goals_for, "goals_against": goals_against,
+        }
 
         match_list.append({
             "match_id": mid,
@@ -797,46 +829,22 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
             "goals_against": goals_against,
         })
 
-    # Build match detail
+    # Build match detail (use cached stats from match_list loop)
     detail = None
-    if detail_match_id is not None:
-        mr = barca_mt[barca_mt["match_id"] == detail_match_id]
-        if len(mr):
-            mr = mr.iloc[0]
-            mid = detail_match_id
-            ms = sc[sc["match_id"] == mid]
-            barca_ms = ms[ms["player_id"].isin(barca_ids)]
-            opp_ms = ms[~ms["player_id"].isin(barca_ids)]
+    if detail_match_id is not None and detail_match_id in _match_stats_cache:
+        c = _match_stats_cache[detail_match_id]
+        mid = detail_match_id
+        barca_ms = c["barca_ms"]; opp_ms = c["opp_ms"]
+        h_team = c["h_team"]; a_team = c["a_team"]
+        h_score = c["h_score"]; a_score = c["a_score"]
+        is_home = c["is_home"]; opp = c["opp"]; result = c["result"]
+        squad_avg = c["squad_avg"]; possession = c["possession"]
+        total_xg = c["total_xg"]; total_shots = c["total_shots"]
+        goals_for = c["goals_for"]; goals_against = c["goals_against"]
 
-            h_team = str(mr.get("home_team", ""))
-            a_team = str(mr.get("away_team", ""))
-            h_score = _si(mr.get("home_score"))
-            a_score = _si(mr.get("away_score"))
-            is_home = "Barcelona" in h_team
-            opp = a_team if is_home else h_team
-            if is_home:
-                result = "W" if h_score > a_score else ("D" if h_score == a_score else "L")
-            else:
-                result = "W" if a_score > h_score else ("D" if a_score == h_score else "L")
-
-            squad_avg = _sf(barca_ms["overall_score"].mean()) if len(barca_ms) else None
-
-            barca_cf = cf[(cf["match_id"] == mid) & (cf["player_id"].isin(barca_ids))]
-            total_xg = _sf(barca_cf["total_xg"].sum()) if "total_xg" in barca_cf.columns else None
-            total_shots = _si(barca_cf["total_shots"].sum()) if "total_shots" in barca_cf.columns else None
-            opp_cf = cf[(cf["match_id"] == mid) & (cf["player_id"].isin(opp_ms["player_id"].unique()))]
-            def _total_actions(df):
-                return float(df["total_passes"].sum() + df["total_carries"].sum() + df["total_dribbles"].sum() + df["total_shots"].sum()) if all(c in df.columns for c in ["total_passes","total_carries","total_dribbles","total_shots"]) else None
-            barca_acts = _total_actions(barca_cf)
-            opp_acts = _total_actions(opp_cf)
-            possession = round((barca_acts / (barca_acts + opp_acts)) * 100, 1) if barca_acts is not None and opp_acts is not None and (barca_acts + opp_acts) > 0 else None
-
-            goals_for = h_score if is_home else a_score
-            goals_against = a_score if is_home else h_score
-
-            # Players
-            players = []
-            for _, pr in barca_ms.sort_values("overall_score", ascending=False).iterrows():
+        # Players
+        players = []
+        for _, pr in barca_ms.sort_values("overall_score", ascending=False).iterrows():
                 pid = pr["player_id"]
                 pcf = cf[(cf["player_id"] == pid) & (cf["match_id"] == mid)]
                 pcf_r = pcf.iloc[0] if len(pcf) else None
@@ -856,57 +864,57 @@ def get_match_log(match_id: Optional[int] = Query(None), season: Optional[str] =
                     "dribble_success_rate": _sf(pcf_r.get("dribble_success_rate")) if pcf_r is not None and "dribble_success_rate" in pcf_r else None,
                 })
 
-            # Events with xG and VAEP
-            match_events = ev[ev["match_id"] == mid].sort_values(["period", "minute"]).copy()
-            barca_event_df = match_events[match_events["team_name"].astype(str).str.contains("Barcelona", case=False, na=False)]
-            events_list = []
-            for _, er in barca_event_df.iterrows():
-                ev_xg = _sf(er.get("shot_xg"))
-                events_list.append({
-                    "minute": _si(er.get("minute")),
-                    "period": _si(er.get("period")),
-                    "event_type": str(er.get("event_type", "")),
-                    "player_name": str(er.get("player_name", "")),
-                    "outcome": str(er.get("shot_outcome", er.get("pass_outcome", er.get("dribble_outcome", "")))),
-                    "xg": ev_xg,
-                })
+        # Events with xG and VAEP
+        match_events = ev[ev["match_id"] == mid].sort_values(["period", "minute"]).copy()
+        barca_event_df = match_events[match_events["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False)]
+        events_list = []
+        for _, er in barca_event_df.iterrows():
+            ev_xg = _sf(er.get("shot_xg"))
+            events_list.append({
+                "minute": _si(er.get("minute")),
+                "period": _si(er.get("period")),
+                "event_type": str(er.get("event_type", "")),
+                "player_name": str(er.get("player_name", "")),
+                "outcome": str(er.get("shot_outcome", er.get("pass_outcome", er.get("dribble_outcome", "")))),
+                "xg": ev_xg,
+            })
 
-            # xG flow: cumulative xG per minute across all Barcelona events with shots
-            xg_flow_minutes = [0.0] * 121
-            for _, er in barca_event_df.iterrows():
-                ev_xg = er.get("shot_xg")
-                minute = int(er.get("minute", 0))
-                if ev_xg is not None and not (isinstance(ev_xg, float) and np.isnan(ev_xg)):
-                    if minute < len(xg_flow_minutes):
-                        xg_flow_minutes[minute] += float(ev_xg)
-            cum = 0.0
-            xg_flow = []
-            for v in xg_flow_minutes:
-                cum += v
-                xg_flow.append(round(cum, 4))
+        # xG flow: cumulative xG per minute across all Barcelona events with shots
+        xg_flow_minutes = [0.0] * 121
+        for _, er in barca_event_df.iterrows():
+            ev_xg = er.get("shot_xg")
+            minute = int(er.get("minute", 0))
+            if ev_xg is not None and not (isinstance(ev_xg, float) and np.isnan(ev_xg)):
+                if minute < len(xg_flow_minutes):
+                    xg_flow_minutes[minute] += float(ev_xg)
+        cum = 0.0
+        xg_flow = []
+        for v in xg_flow_minutes:
+            cum += v
+            xg_flow.append(round(cum, 4))
 
-            detail = {
-                "match_id": mid,
-                "match_week": _si(mr.get("match_week")),
-                "date": str(mr.get("match_date", "")),
-                "home_team": h_team,
-                "away_team": a_team,
-                "home_score": h_score,
-                "away_score": a_score,
-                "score": f"{h_score}-{a_score}",
-                "result": result,
-                "is_home": is_home,
-                "opponent": opp,
-                "squad_avg_score": squad_avg,
-                "possession": possession,
-                "total_shots": total_shots,
-                "total_xg": total_xg,
-                "goals_for": goals_for,
-                "goals_against": goals_against,
-                "players": players,
-                "events": events_list,
-                "xg_flow": xg_flow,
-            }
+        detail = {
+            "match_id": mid,
+            "match_week": _si(barca_mt[barca_mt["match_id"] == mid].iloc[0].get("match_week")) if len(barca_mt[barca_mt["match_id"] == mid]) else None,
+            "date": str(barca_mt[barca_mt["match_id"] == mid].iloc[0].get("match_date", "")) if len(barca_mt[barca_mt["match_id"] == mid]) else "",
+            "home_team": h_team,
+            "away_team": a_team,
+            "home_score": h_score,
+            "away_score": a_score,
+            "score": f"{h_score}-{a_score}",
+            "result": result,
+            "is_home": is_home,
+            "opponent": opp,
+            "squad_avg_score": squad_avg,
+            "possession": possession,
+            "total_shots": total_shots,
+            "total_xg": total_xg,
+            "goals_for": goals_for,
+            "goals_against": goals_against,
+            "players": players,
+            "events": events_list,
+            "xg_flow": xg_flow,
+        }
 
     return {
         "matches": match_list,
@@ -924,7 +932,7 @@ def get_tactical_board(match_id: Optional[int] = Query(None), season: Optional[s
     mt = d["matches"]
     li = d["lineups"]
 
-    is_barca = sc["team_name"].astype(str).str.contains("Barcelona", case=False, na=False)
+    is_barca = sc["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False)
     barca = sc[is_barca]
     barca_ids = barca["player_id"].unique()
     barca_match_ids = barca["match_id"].unique()
@@ -944,14 +952,14 @@ def get_tactical_board(match_id: Optional[int] = Query(None), season: Optional[s
     a_team = str(mr.get("away_team", ""))
     h_score = _si(mr.get("home_score"))
     a_score = _si(mr.get("away_score"))
-    is_home = "Barcelona" in h_team
+    is_home = TARGET_TEAM in h_team
 
     # Players with positions (filter to Starting XI only)
     ms = sc[sc["match_id"] == match_id]
     barca_ms = ms[ms["player_id"].isin(barca_ids)]
 
     # Determine starters from lineups data
-    barca_li = li[(li["match_id"] == match_id) & (li["team_name"].astype(str).str.contains("Barcelona", case=False, na=False))]
+    barca_li = li[(li["match_id"] == match_id) & (li["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False))]
     def _is_starter(pos_val):
         if pos_val is None or (isinstance(pos_val, float) and np.isnan(pos_val)):
             return False
@@ -1030,7 +1038,7 @@ def get_tactical_board(match_id: Optional[int] = Query(None), season: Optional[s
 
     # Pass network
     match_events = ev[ev["match_id"] == match_id].sort_values("event_index").copy()
-    barca_ev = match_events[match_events["team_name"].astype(str).str.contains("Barcelona", case=False, na=False)]
+    barca_ev = match_events[match_events["team_name"].astype(str).str.contains(TARGET_TEAM, case=False, na=False)]
     barca_ev_list = barca_ev.to_dict("records")
     pass_pairs = {}
     for i, row in enumerate(barca_ev_list):

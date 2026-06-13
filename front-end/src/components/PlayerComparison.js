@@ -135,7 +135,7 @@ const PlayerComparison = () => {
                 {['overall_score', ...dimensions].map(
                   (metric) => (
                     <tr key={metric} className="border-b border-slate-100">
-                      <td className="py-3 pr-4 font-medium capitalize text-slate-600">{metric.replace('_', ' ')}</td>
+                      <td className="py-3 pr-4 font-medium text-slate-600">{metric === 'overall_score' ? 'KPI Rating' : metric.charAt(0).toUpperCase() + metric.slice(1).replace('_', ' ')}</td>
                       {comparison.map((p) => {
                         const val = metric === 'overall_score' ? p.overall_score : p.scores?.[metric];
                         const pct = maxScore > 0 ? ((val || 0) / maxScore) * 100 : 0;

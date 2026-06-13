@@ -1,12 +1,12 @@
 """api/routes/team.py"""
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from typing import Optional
 from api.routes._shared import _load, _sf, _si, _to_records
 
 router = APIRouter()
 
 @router.get("/team/{team_id}/summary")
-def team_summary(team_id: str, match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
+def team_summary(team_id: str = Path(..., min_length=1, description="Team name (e.g. Barcelona)"), match_id: Optional[int] = Query(None), season: Optional[str] = Query(None)):
     d = _load(season=season)
     sc = d["scores"]
     mask = sc["team_name"].astype(str).str.contains(str(team_id), case=False, na=False) if "team_name" in sc.columns \

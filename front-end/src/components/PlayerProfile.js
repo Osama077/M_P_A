@@ -31,6 +31,7 @@ const PCT_COLORS = {
 const TIMELINE_TYPES = [
   { type: 'goal', color: '#22c55e', label: 'Goal', icon: '⚽' },
   { type: 'shot', color: '#3b82f6', label: 'Shot', icon: '' },
+  { type: 'save', color: '#22c55e', label: 'Save', icon: '' },
   { type: 'key_pass', color: '#f59e0b', label: 'Key Pass', icon: '' },
   { type: 'dribble', color: '#a855f7', label: 'Dribble', icon: '' },
   { type: 'progressive_carry', color: '#06b6d4', label: 'Prog. Carry', icon: '' },
@@ -461,12 +462,14 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
             </div>
             <div className="bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
               <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center gap-2">
-                <Target className="w-3.5 h-3.5 text-red-500" />
-                <span className="text-[11px] font-bold text-slate-700">Shot Map</span>
+                <Target className={`w-3.5 h-3.5 ${pi?.position_group === 'GK' ? 'text-green-500' : 'text-red-500'}`} />
+                <span className="text-[11px] font-bold text-slate-700">
+                  {pi?.position_group === 'GK' ? 'Saves Map' : 'Shot Map'}
+                </span>
               </div>
               <div className="p-2">
                 {charts.shot_map ? (
-                  <img src={charts.shot_map} alt="Shot Map" className="w-full rounded" />
+                  <img src={charts.shot_map} alt={pi?.position_group === 'GK' ? 'Saves Map' : 'Shot Map'} className="w-full rounded" />
                 ) : (
                   <div className="h-40 flex items-center justify-center text-[10px] text-slate-400">N/A</div>
                 )}
@@ -510,7 +513,17 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
             <span className="text-xs text-slate-500">{contextLabel}</span>
           </div>
           <div className="p-4 grid grid-cols-2 gap-3">
-            {[
+            {(pi?.position_group === 'GK' ? [
+              { label: 'Saves', val: mstats?.saves, color: '#22c55e' },
+              { label: 'Save %', val: mstats?.save_pct, suffix: '%', color: '#3b82f6' },
+              { label: 'Goals Conceded', val: mstats?.goals_conceded, color: '#ef4444' },
+              { label: 'Shots Faced', val: mstats?.shots_faced, color: '#f59e0b' },
+              { label: 'Passes', val: mstats?.total_passes, color: '#3b82f6' },
+              { label: 'Accuracy', val: mstats?.pass_accuracy, suffix: '%', color: '#22c55e' },
+              { label: 'Progress. Passes', val: mstats?.progressive_passes, color: '#06b6d4' },
+              { label: 'Distance', val: mstats?.distance_covered ? (mstats.distance_covered / 1000).toFixed(1) + 'km' : null, color: '#1d4ed8' },
+              { label: 'Fouls Won', val: mstats?.fouls_won, color: '#84cc16' },
+            ] : [
               { label: 'Passes', val: mstats?.total_passes, color: '#3b82f6' },
               { label: 'Accuracy', val: mstats?.pass_accuracy, suffix: '%', color: '#22c55e' },
               { label: 'Shots', val: mstats?.total_shots, color: '#ef4444' },
@@ -520,7 +533,7 @@ const PlayerProfile = ({ playerName, initialMatchId }) => {
               { label: 'Pressures', val: mstats?.total_pressures, color: '#f97316' },
               { label: 'Fouls Won', val: mstats?.fouls_won, color: '#84cc16' },
               { label: 'Distance', val: mstats?.distance_covered ? (mstats.distance_covered / 1000).toFixed(1) + 'km' : null, color: '#1d4ed8' },
-            ].filter(s => s.val !== undefined && s.val !== null).map((s) => (
+            ]).filter(s => s.val !== undefined && s.val !== null).map((s) => (
               <div key={s.label} className="bg-slate-50 rounded-lg p-2.5 text-center border border-slate-200">
                 <div className="text-lg font-black font-mono" style={{ color: s.color }}>
                   {typeof s.val === 'number' ? (s.suffix ? s.val.toFixed(1) + s.suffix : s.val) : s.val}

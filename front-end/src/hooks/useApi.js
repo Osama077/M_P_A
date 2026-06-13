@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
 
 export const useApi = (endpoint, options = {}) => {
   const [data, setData] = useState(null);

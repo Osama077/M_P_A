@@ -5,7 +5,7 @@
 
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001/api/v1';
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -309,6 +309,18 @@ export const AdvancedAnalysisAPI = {
 /**
  * SQUAD ENDPOINTS
  */
+export const PositionStatsAPI = {
+  getPositionStats: async (season, position) => {
+    try {
+      const params = new URLSearchParams({ season, position });
+      const response = await apiClient.get(`/player/position-stats?${params.toString()}`, { timeout: 60000 });
+      return response.data;
+    } catch (error) {
+      throw new Error(`Failed to fetch position stats: ${error.message}`);
+    }
+  },
+};
+
 export const SquadAPI = {
   getSquadOverview: async (matchId = null, season = null) => {
     try {
@@ -393,19 +405,16 @@ export const MatchLogAPI = {
 };
 
 /**
- * TACTICAL BOARD ENDPOINT
+ * MATCH ANALYSIS (Combined: Tactical Board + Team Stats + Timeline)
  */
-export const TacticalBoardAPI = {
-  getTacticalBoard: async (matchId = null, season = null) => {
+export const MatchAnalysisAPI = {
+  getAnalysis: async (matchId, season = null) => {
     try {
-      const params = new URLSearchParams();
-      if (matchId) params.set('match_id', matchId);
-      if (season) params.set('season', season);
-      const qs = params.toString();
-      const response = await apiClient.get(`/player/tactical-board${qs ? '?' + qs : ''}`, { timeout: 120000 });
+      const params = season ? `?season=${encodeURIComponent(season)}` : '';
+      const response = await apiClient.get(`/match/${matchId}/analysis-complete${params}`, { timeout: 120000 });
       return response.data;
     } catch (error) {
-      throw new Error(`Failed to fetch tactical board: ${error.message}`);
+      throw new Error(`Failed to fetch match analysis: ${error.message}`);
     }
   },
 };

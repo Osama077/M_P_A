@@ -2,11 +2,12 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 import pandas as pd
+import os
 from api.routes._shared import _load, _sf, _si, GRANULAR_LABELS, GRANULAR_POSITIONS
 
 router = APIRouter()
 
-TEAM_NAME = "Barcelona"
+TEAM_NAME = os.environ.get("TARGET_TEAM", "Barcelona")
 
 CLUSTER_SHORT = {
     "Creative Playmaker":    "creator",
@@ -33,8 +34,9 @@ def get_squad_scores(match_id: Optional[int] = Query(None), season: Optional[str
     pr = d.get("position_kpi", None)
 
     # Determine match context
+    team_col = "team_name" if "team_name" in sc.columns else "team"
     squad_ids = sc.loc[
-        sc["team_name"].astype(str).str.contains(TEAM_NAME, case=False, na=False),
+        sc[team_col].astype(str).str.contains(TEAM_NAME, case=False, na=False),
         "player_id"
     ].unique()
     squad_match_ids = sc["match_id"][sc["player_id"].isin(squad_ids)].unique()
@@ -98,7 +100,7 @@ def get_squad_scores(match_id: Optional[int] = Query(None), season: Optional[str
         pr_r = pr_row.iloc[0] if pr_row is not None and len(pr_row) else None
 
         # History for last-5 sparkline and trend value
-        hist = sc[(sc["player_id"] == pid) & (sc["team_name"].astype(str).str.contains(TEAM_NAME, case=False, na=False))]
+        hist = sc[(sc["player_id"] == pid) & (sc[team_col].astype(str).str.contains(TEAM_NAME, case=False, na=False))]
         hist_sorted = hist.sort_values("match_id")
         last5 = [round(float(x), 2) for x in hist_sorted["overall_score"].tail(5).tolist()]
 
@@ -138,6 +140,9 @@ def get_squad_scores(match_id: Optional[int] = Query(None), season: Optional[str
             "trend_value": trend_val,
             "last_5_scores": last5,
         })
+
+    if not players:
+        raise HTTPException(404, f"No {TEAM_NAME} players found for match {match_id}")
 
     players.sort(key=lambda p: p["overall_score"] or 0, reverse=True)
 
@@ -199,9 +204,9 @@ def get_squad_scores(match_id: Optional[int] = Query(None), season: Optional[str
             "delta": declining["trend_value"],
         }
 
-    # Below baseline: performance_trend == "Declining"
+    # Below baseline: recent trend is significantly negative
     insights["below_baseline_count"] = sum(
-        1 for p in players if p["performance_trend"] == "Declining"
+        1 for p in players if p.get("trend_value", 0) < -0.1
     )
 
     # Available matches for selector (most recent first by season week)
@@ -339,7 +344,8 @@ def get_position_stats(
     if position not in all_valid:
         raise HTTPException(400, f"Invalid position '{position}'. Choose from: {all_valid}")
 
-    squad_ms = sc[sc["team_name"].astype(str).str.contains(TEAM_NAME, case=False, na=False)]
+    team_col = "team_name" if "team_name" in sc.columns else "team"
+    squad_ms = sc[sc[team_col].astype(str).str.contains(TEAM_NAME, case=False, na=False)]
     squad_ms = squad_ms[squad_ms["season_label"] == season]
 
     if position in coarse_positions:
@@ -397,22 +403,26 @@ def get_position_stats(
     }
     kpi_dims = pos_kpi_cols.get(granular_key, pos_kpi_cols.get("Central Midfielder", []))
 
+    # Pre-filter DataFrames to avoid repeated full-table scans
+    player_ids = squad_ms["player_id"].unique()
+    cf_filtered = cf[cf["player_id"].isin(player_ids)]
+    kpi_filtered = kpi[kpi["player_id"].isin(player_ids)] if kpi is not None and "player_id" in kpi.columns else pd.DataFrame()
+
+    def _per90(val, mins):
+        return round((val / (mins / 90)), 2) if mins > 0 else None
+
     players = []
-    for pid in squad_ms["player_id"].unique():
+    for pid in player_ids:
         p_rows = squad_ms[squad_ms["player_id"] == pid]
         r = p_rows.iloc[0]
         pname = str(r["player_name"])
         match_ids = p_rows["match_id"].unique()
 
-        cf_season = cf[(cf["player_id"] == pid) & (cf["match_id"].isin(match_ids))]
-        kpi_season = kpi[(kpi["player_id"] == pid) & (kpi["match_id"].isin(match_ids))] if kpi is not None and "player_id" in kpi.columns else pd.DataFrame()
+        cf_season = cf_filtered[cf_filtered["player_id"] == pid]
+        kpi_season = kpi_filtered[kpi_filtered["player_id"] == pid] if len(kpi_filtered) else pd.DataFrame()
 
         mins = float(cf_season["minutes_played"].sum()) if len(cf_season) else 0
         matches = len(p_rows)
-
-        # Per-90 season aggregates
-        def _per90(val):
-            return round((val / (mins / 90)), 2) if mins > 0 else None
 
         # KPI dimension averages
         kpi_dims_avg = {}
@@ -421,6 +431,8 @@ def get_position_stats(
                 if col in kpi_season.columns:
                     vals = kpi_season[col].dropna()
                     kpi_dims_avg[col.replace("kpi_", "")] = _sf(vals.mean()) if len(vals) else None
+
+        _p90 = lambda v: _per90(v, mins)
 
         players.append({
             "player_id": _si(pid),
@@ -433,24 +445,24 @@ def get_position_stats(
             "avg_position_kpi_label": str(kpi_season["position_kpi_label"].mode().iloc[0]) if len(kpi_season) and "position_kpi_label" in kpi_season.columns else "",
             "kpi_dimensions": kpi_dims_avg,
             # Position-specific raw per-90 stats
-            "goals_per90": _per90(float(cf_season["goals"].sum())) if len(cf_season) else None,
-            "assists_per90": _per90(float(cf_season["assists"].sum())) if len(cf_season) else None,
-            "shots_per90": _per90(float(cf_season["total_shots"].sum())) if len(cf_season) else None,
-            "passes_per90": _per90(float(cf_season["total_passes"].sum())) if len(cf_season) else None,
+            "goals_per90": _p90(float(cf_season["goals"].sum())) if len(cf_season) else None,
+            "assists_per90": _p90(float(cf_season["assists"].sum())) if len(cf_season) else None,
+            "shots_per90": _p90(float(cf_season["total_shots"].sum())) if len(cf_season) else None,
+            "passes_per90": _p90(float(cf_season["total_passes"].sum())) if len(cf_season) else None,
             "pass_accuracy": _sf(cf_season["pass_accuracy"].mean()) if len(cf_season) else None,
-            "progressive_passes_per90": _per90(float(cf_season["progressive_passes"].sum())) if len(cf_season) else None,
-            "progressive_carries_per90": _per90(float(cf_season["progressive_carries"].sum())) if len(cf_season) else None,
-            "dribbles_per90": _per90(float(cf_season["successful_dribbles"].sum())) if len(cf_season) else None,
-            "pressure_regains_per90": _per90(float(cf_season["pressure_regains"].sum())) if len(cf_season) else None,
-            "chances_created_per90": _per90(float(cf_season["chances_created"].sum())) if len(cf_season) else None,
-            "ball_receipts_per90": _per90(float(cf_season["ball_receipts"].sum())) if len(cf_season) else None,
-            "defensive_actions_per90": _per90(
+            "progressive_passes_per90": _p90(float(cf_season["progressive_passes"].sum())) if len(cf_season) else None,
+            "progressive_carries_per90": _p90(float(cf_season["progressive_carries"].sum())) if len(cf_season) else None,
+            "dribbles_per90": _p90(float(cf_season["successful_dribbles"].sum())) if len(cf_season) else None,
+            "pressure_regains_per90": _p90(float(cf_season["pressure_regains"].sum())) if len(cf_season) else None,
+            "chances_created_per90": _p90(float(cf_season["chances_created"].sum())) if len(cf_season) else None,
+            "ball_receipts_per90": _p90(float(cf_season["ball_receipts"].sum())) if len(cf_season) else None,
+            "defensive_actions_per90": _p90(
                 float(cf_season["interceptions"].sum() + cf_season["clearances"].sum() + cf_season["blocks"].sum())
             ) if len(cf_season) else None,
-            "duels_per90": _per90(float(cf_season["duels_total"].sum())) if len(cf_season) else None,
-            "saves_per90": _per90(float(cf_season["saves"].sum())) if len(cf_season) else None,
+            "duels_per90": _p90(float(cf_season["duels_total"].sum())) if len(cf_season) else None,
+            "saves_per90": _p90(float(cf_season["saves"].sum())) if len(cf_season) else None,
             "save_pct": _sf(cf_season["save_pct"].mean()) if len(cf_season) else None,
-            "goals_conceded_per90": _per90(float(cf_season["goals_conceded"].sum())) if len(cf_season) else None,
+            "goals_conceded_per90": _p90(float(cf_season["goals_conceded"].sum())) if len(cf_season) else None,
             "shot_accuracy": _sf(cf_season["shot_accuracy"].mean()) if len(cf_season) else None,
             "xg_overperformance": _sf(cf_season["xg_overperformance"].mean()) if len(cf_season) else None,
         })

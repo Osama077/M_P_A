@@ -163,7 +163,7 @@ const PlayerAnomalies = ({ playerId, playerName }) => {
         <div className="mt-4 surface p-4">
           <h3 className="mb-2 text-sm font-semibold text-slate-800">Methodology</h3>
           <p className="text-sm text-slate-600">
-            Outliers are detected using Z-scores on overall_score (|Z| &gt; {a.z_score_summary?.threshold || 2.0}).
+            Outliers are detected using Z-scores on KPI Rating (|Z| &gt; {a.z_score_summary?.threshold || 2.0}).
             Contextual anomalies use Isolation Forest on multi-dimensional features
             (score, actions, distance, accuracy, pressure) to find unusual performance patterns.
           </p>

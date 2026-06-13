@@ -1,5 +1,6 @@
 # Match Performance Analysis — Deploy to Hugging Face Spaces
-# Run this script from the project root directory
+# Requires PowerShell and the huggingface_hub Python package.
+# Run this script from the project root directory on Windows.
 
 param(
     [Parameter(Mandatory=$false)]

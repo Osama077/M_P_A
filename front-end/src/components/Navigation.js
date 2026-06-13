@@ -11,9 +11,9 @@ import { PAGES, useAppContext, USER_ROLES } from '../context/AppContext';
 const navItems = [
   { id: PAGES.OVERVIEW, label: 'Overview', icon: Home },
   { id: PAGES.SQUAD_OVERVIEW, label: 'Squad', icon: Search },
+  { id: PAGES.POSITION,      label: 'Position', icon: Activity },
   { id: PAGES.SEASON_TRENDS, label: 'Trends', icon: TrendingUp },
   { id: PAGES.MATCH_LOG, label: 'Match Log', icon: ClipboardList },
-  { id: PAGES.TACTICAL_BOARD, label: 'Tactical Board', icon: Target },
   { id: PAGES.DASHBOARD, label: 'Dashboard', icon: BarChart3 },
   { id: PAGES.ANIMATED, label: 'Animated', icon: Activity },
   { id: PAGES.COMPARISON, label: 'Comparison', icon: Users },

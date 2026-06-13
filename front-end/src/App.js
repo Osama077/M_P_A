@@ -17,7 +17,8 @@ import TopPerformers from './components/TopPerformers';
 import SquadOverview from './components/SquadOverview';
 import SeasonTrends from './components/SeasonTrends';
 import MatchLog from './components/MatchLog';
-import TacticalBoard from './components/TacticalBoard';
+import PositionDashboard from './components/PositionDashboard';
+
 import WhatsNewPage from './components/WhatsNewPage';
 import CoachingInsights from './components/CoachingInsights';
 import MatchPrediction from './components/MatchPrediction';
@@ -66,8 +67,6 @@ function AppLayout() {
 
         {currentPage === PAGES.MATCH_LOG && <MatchLog />}
 
-        {currentPage === PAGES.TACTICAL_BOARD && <TacticalBoard />}
-
         {currentPage === PAGES.PLAYERS && <PlayerList onSelectPlayer={openPlayerDashboard} />}
 
         {currentPage === PAGES.DASHBOARD && renderPlayerSubpage()}
@@ -98,6 +97,10 @@ function AppLayout() {
 
         {currentPage === PAGES.TOP_PERFORMERS && (
           <TopPerformers onSelectPlayer={openPlayerDashboard} />
+        )}
+
+        {currentPage === PAGES.POSITION && (
+          <PositionDashboard onSelectPlayer={(name, id) => openPlayerDashboard(name, id)} />
         )}
 
         {currentPage === PAGES.COACHING && (

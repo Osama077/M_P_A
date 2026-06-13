@@ -565,6 +565,98 @@ def shooting_map_chart(player_data: dict, match_id: int = None) -> str:
     return _fig_to_base64(fig)
 
 
+# ── Chart 8b: Saves Map (Goalkeeper — Shots Faced) ──────────────────────────
+
+def saves_map_chart(player_data: dict, match_id: int = None,
+                    full_events: pd.DataFrame = None) -> str:
+    """Show shots a goalkeeper faced: saves made (green) and goals conceded (red)."""
+    pid = player_data["player_id"]
+
+    if full_events is not None:
+        events = full_events
+    else:
+        events = _load()["events"]
+
+    # Filter to match
+    if match_id is not None and "match_id" in events.columns:
+        events = events[events["match_id"] == match_id]
+
+    # Determine the GK's team from their own events
+    gk_events = events[events["player_id"] == pid]
+    gk_team_id = None
+    if len(gk_events) and "team_id" in gk_events.columns:
+        teams = gk_events["team_id"].dropna().unique()
+        if len(teams):
+            gk_team_id = int(teams[0])
+
+    shots = events[events["event_type"] == "Shot"].copy()
+    if not len(shots):
+        fig, ax = plt.subplots(figsize=(8, 6))
+        fig.patch.set_facecolor("#22312b")
+        ax.set_facecolor("#22312b")
+        ax.text(0.5, 0.5, "No shot data for this match",
+                ha="center", va="center", color="white", fontsize=12)
+        return _fig_to_base64(fig)
+
+    saves = shots[(shots["shot_outcome"] == "Saved") & (shots["player_id"] == pid)]
+
+    goals_conceded = pd.DataFrame()
+    if gk_team_id is not None:
+        goals_conceded = shots[
+            (shots["shot_outcome"] == "Goal")
+            & (shots["team_id"] != gk_team_id)
+            & (shots["team_id"].notna())
+        ]
+
+    other_faced = pd.DataFrame()
+    if gk_team_id is not None:
+        idx = set(saves.index) | set(goals_conceded.index)
+        other_faced = shots[
+            (shots["team_id"] != gk_team_id)
+            & (shots["team_id"].notna())
+            & ~shots.index.isin(idx)
+        ]
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    fig.patch.set_facecolor("#22312b")
+
+    if HAS_MPLSOCCER:
+        pitch = VerticalPitch(pitch_type="statsbomb", pitch_color="#22312b",
+                              line_color="white", half=True)
+        pitch.draw(ax=ax)
+
+        if len(saves):
+            ax.scatter(saves["location_y"], saves["location_x"],
+                       c="#22c55e", s=saves["shot_xg"].fillna(0.1) * 1000 + 50,
+                       alpha=0.8, zorder=3, label="Saved", edgecolors="white", linewidth=0.5)
+        if len(goals_conceded):
+            ax.scatter(goals_conceded["location_y"], goals_conceded["location_x"],
+                       c="#ef4444", s=goals_conceded["shot_xg"].fillna(0.1) * 1000 + 80,
+                       alpha=1.0, zorder=4, marker="*", label="Goal Conceded", edgecolors="white")
+        if len(other_faced):
+            ax.scatter(other_faced["location_y"], other_faced["location_x"],
+                       c="#94a3b8", s=other_faced["shot_xg"].fillna(0.1) * 500 + 30,
+                       alpha=0.5, zorder=2, label="Other Shot Faced")
+    else:
+        ax.set_facecolor("#22312b")
+        if len(saves):
+            ax.scatter(saves["location_x"], saves["location_y"],
+                       c="#22c55e", s=80, alpha=0.8, label="Saved")
+        if len(goals_conceded):
+            ax.scatter(goals_conceded["location_x"], goals_conceded["location_y"],
+                       c="#ef4444", s=120, marker="*", label="Goal Conceded")
+        if len(other_faced):
+            ax.scatter(other_faced["location_x"], other_faced["location_y"],
+                       c="#94a3b8", s=40, alpha=0.5, label="Other Shot Faced")
+
+    match_suffix = f" (Match {match_id})" if match_id is not None else " (Season)"
+    ax.set_title(f"{player_data['name']} — Saves Map{match_suffix}\n"
+                 f"(Green = Saved | Red = Goal | Grey = Other)",
+                 color="white", fontsize=11, fontweight="bold")
+    ax.legend(facecolor="#2a2a3e", edgecolor="none", labelcolor="white")
+    return _fig_to_base64(fig)
+
+
 # ── Chart 9: Percentile Profile ───────────────────────────────────────────────
 
 def percentile_chart(player_data: dict) -> str:

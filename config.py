@@ -16,6 +16,7 @@ TARGET_TEAM = "Barcelona"
 
 # Multi-season support: (competition_id, season_id, label)
 # La Liga = competition 11, Champions League = 16, Copa del Rey = 87
+# Season IDs are StatsBomb identifiers (22=2010/11, 23=2011/12, ... 42=2018/19, 90=2019/20)
 SEASONS_LIST = [
     (11, 22, "2010/2011"), (11, 23, "2011/2012"),
     (11, 24, "2012/2013"), (11, 25, "2013/2014"),
@@ -34,8 +35,8 @@ SEASON_LABEL_MAP = {label: sid for _, sid, label in SEASONS_LIST}
 SEASON_ID_MAP    = {sid: label for _, sid, label in SEASONS_LIST}
 
 # ── VAEP ───────────────────────────────────────────────────────────────────────
-VAEP_WINDOW    = 10    # عدد الـ actions للتنبؤ
-VAEP_N_CONTEXT = 3     # عدد الـ actions السابقة
+VAEP_WINDOW    = 10    # Number of actions for prediction window
+VAEP_N_CONTEXT = 3     # Number of preceding actions for context
 
 # ── Scoring ────────────────────────────────────────────────────────────────────
 # Legacy dimension weights (for backward compatibility)

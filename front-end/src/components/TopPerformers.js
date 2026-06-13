@@ -9,7 +9,7 @@ import LoadingSpinner from './LoadingSpinner';
 import ErrorAlert from './ErrorAlert';
 
 const sortOptions = [
-  { value: 'overall_score', label: 'Overall Score', icon: BarChart3 },
+  { value: 'overall_score', label: 'KPI', icon: BarChart3 },
   { value: 'momentum', label: 'Momentum', icon: TrendingUp },
   { value: 'consistency', label: 'Consistency', icon: Target },
 ];
@@ -163,7 +163,7 @@ const TopPerformers = ({ onSelectPlayer }) => {
                   <div className="flex items-center gap-4">
                     {sortBy !== 'overall_score' && (
                       <span className="text-xs text-slate-400">
-                        Score: {item.overall_score?.toFixed(2) || 'N/A'}
+                        KPI: {item.overall_score?.toFixed(2) || 'N/A'}
                       </span>
                     )}
                     <div className="text-right">
